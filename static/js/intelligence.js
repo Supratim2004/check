@@ -32,9 +32,13 @@ const REGISTER_PAGE_SIZE = 10;
 let registerPage = 0;
 let registerSide = 'all';
 
-const PALETTE = ['#60a5fa', '#a78bfa', '#f472b6', '#fbbf24', '#4ade80', '#f87171', '#38bdf8', '#c084fc'];
+const PALETTE = ['#2563eb', '#8b4a6b', '#b45309', '#2f6f6d', '#9a3412', '#6d4c8d', '#0f766e', '#7c3f1d'];
+const CHART_TEXT = '#5b4636';
+const CHART_MUTED = '#6b6258';
+const CHART_GRID = 'rgba(112, 88, 65, 0.15)';
+const CHART_PANEL = '#f7f2e9';
 
-Chart.defaults.color = '#c4b5fd';
+Chart.defaults.color = CHART_TEXT;
 Chart.defaults.font.family = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -217,14 +221,14 @@ function renderDistributionChart(courtData) {
             datasets: [{
                 data: rows.map(r => r.filings),
                 backgroundColor: PALETTE,
-                borderColor: '#1e293b',
+                borderColor: CHART_PANEL,
                 borderWidth: 2,
             }]
         },
         options: {
             responsive: true,
             maintainAspectRatio: false,
-            plugins: { legend: { position: 'bottom', labels: { color: '#c4b5fd', boxWidth: 12 } } },
+            plugins: { legend: { position: 'bottom', labels: { color: CHART_TEXT, boxWidth: 12 } } },
             cutout: '55%',
         }
     });
@@ -250,8 +254,8 @@ function renderHearingsChart(courtData) {
             maintainAspectRatio: false,
             plugins: { legend: { display: false } },
             scales: {
-                x: { ticks: { color: '#c4b5fd' }, grid: { color: 'rgba(148,163,184,0.1)' } },
-                y: { ticks: { color: '#e2e8f0' }, grid: { display: false } }
+                x: { ticks: { color: CHART_TEXT }, grid: { color: CHART_GRID } },
+                y: { ticks: { color: CHART_TEXT }, grid: { display: false } }
             }
         }
     });
@@ -385,8 +389,8 @@ function renderMeanFilingsChart(courtData) {
             maintainAspectRatio: false,
             plugins: { legend: { display: false } },
             scales: {
-                x: { ticks: { color: '#c4b5fd', maxRotation: 30, minRotation: 30 }, grid: { display: false } },
-                y: { ticks: { color: '#94a3b8' }, grid: { color: 'rgba(148,163,184,0.08)' } }
+                x: { ticks: { color: CHART_TEXT, maxRotation: 30, minRotation: 30 }, grid: { display: false } },
+                y: { ticks: { color: CHART_MUTED }, grid: { color: CHART_GRID } }
             }
         }
     });
@@ -406,10 +410,10 @@ function renderDisposalChart(courtData) {
         },
         options: {
             responsive: true,
-            plugins: { legend: { position: 'bottom', labels: { color: '#c4b5fd' } } },
+            plugins: { legend: { position: 'bottom', labels: { color: CHART_TEXT } } },
             scales: {
-                x: { ticks: { color: '#c4b5fd', maxRotation: 30, minRotation: 30 }, grid: { display: false } },
-                y: { ticks: { color: '#94a3b8' }, grid: { color: 'rgba(148,163,184,0.08)' }, title: { display: true, text: 'working days', color: '#94a3b8' } }
+                x: { ticks: { color: CHART_TEXT, maxRotation: 30, minRotation: 30 }, grid: { display: false } },
+                y: { ticks: { color: CHART_MUTED }, grid: { color: CHART_GRID }, title: { display: true, text: 'working days', color: CHART_MUTED } }
             }
         }
     });
@@ -429,10 +433,10 @@ function renderGapChart(courtData) {
         },
         options: {
             responsive: true,
-            plugins: { legend: { position: 'bottom', labels: { color: '#c4b5fd' } } },
+            plugins: { legend: { position: 'bottom', labels: { color: CHART_TEXT } } },
             scales: {
-                x: { ticks: { color: '#c4b5fd', maxRotation: 30, minRotation: 30 }, grid: { display: false } },
-                y: { ticks: { color: '#94a3b8' }, grid: { color: 'rgba(148,163,184,0.08)' }, title: { display: true, text: 'working days', color: '#94a3b8' } }
+                x: { ticks: { color: CHART_TEXT, maxRotation: 30, minRotation: 30 }, grid: { display: false } },
+                y: { ticks: { color: CHART_MUTED }, grid: { color: CHART_GRID }, title: { display: true, text: 'working days', color: CHART_MUTED } }
             }
         }
     });
@@ -448,7 +452,7 @@ function renderOutliers(courtData) {
             <div class="anomaly-value">${g.p90} wd</div>
             <div class="anomaly-score">90th pct \u2014 median ${fmt(g.median)} wd</div>
         </div>
-    `).join('') || '<p style="color:#94a3b8;">No case types exceed the 100-working-day threshold at this court.</p>';
+    `).join('') || `<p style="color:${CHART_MUTED};">No case types exceed the 100-working-day threshold at this court.</p>`;
 }
 
 function populateHearingRateTypes(courtData) {
@@ -529,10 +533,10 @@ function renderRateChart(key, canvasId, rows, meanLabel, medianLabel, meanKey, m
         },
         options: {
             indexAxis: 'y', responsive: true, maintainAspectRatio: false,
-            plugins: { legend: { position: 'bottom', labels: { color: '#c4b5fd' } } },
+            plugins: { legend: { position: 'bottom', labels: { color: CHART_TEXT } } },
             scales: {
-                x: { beginAtZero: true, ticks: { color: '#94a3b8' }, grid: { color: 'rgba(148,163,184,0.08)' } },
-                y: { ticks: { color: '#e2e8f0' }, grid: { display: false } },
+                x: { beginAtZero: true, ticks: { color: CHART_MUTED }, grid: { color: CHART_GRID } },
+                y: { ticks: { color: CHART_TEXT }, grid: { display: false } },
             },
         },
     });
