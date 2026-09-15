@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Tamluk Courts Intelligence Platform - Docket Analytics</title>
+    <title>{{ meta.district }} Courts Intelligence Platform - Docket Analytics</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/intelligence.css') }}">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
@@ -21,7 +21,7 @@
                 </svg>
             </div>
             <h2 class="loading-title">Initializing Docket Intelligence</h2>
-            <p class="loading-subtitle">Loading court records • Computing working-day rates</p>
+            <p class="loading-subtitle">Loading court workbooks and monthly records</p>
             <div class="progress-bar">
                 <div class="progress-fill" id="progressFill"></div>
             </div>
@@ -42,9 +42,7 @@
                         </svg>
                     </div>
                     <div>
-                        <h1 class="header-title">{{ meta.district }} Courts</h1>
-                        <p class="header-subtitle">Docket Intelligence Platform &bull; {{ meta.window_start }}
-                            &ndash; {{ meta.window_end }} &bull; {{ meta.months }}-month grid</p>
+                        <h1 class="header-title">Docket Intelligence Platform </h1>
                     </div>
                 </div>
                 <button class="btn-export" id="exportBtn">
@@ -56,6 +54,7 @@
                 </button>
             </header>
 
+            <aside class="dashboard-sidebar" aria-label="Court filters and statistics">
             <!-- Filters -->
             <section class="filters-section">
                 <div class="filters-header">
@@ -66,6 +65,14 @@
                 </div>
                 <div class="filters-grid">
                     <div class="filter-group">
+                        <label for="districtFilter">District</label>
+                        <select id="districtFilter" class="filter-select">
+                            {% for district in districts %}
+                            <option value="{{ district }}" {% if district == meta.district %}selected{% endif %}>{{ district }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="filter-group">
                         <label>Court</label>
                         <select id="courtFilter" class="filter-select">
                             {% for code in courts %}
@@ -74,15 +81,9 @@
                         </select>
                     </div>
                     <div class="filter-group">
-                        <label>Case Type</label>
-                        <select id="caseTypeFilter" class="filter-select">
-                            <option value="all">All Case Types</option>
-                        </select>
-                    </div>
-                    <div class="filter-group">
                         <label>Data Extracted</label>
                         <select class="filter-select" disabled>
-                            <option>{{ meta.extracted_on }}</option>
+                            <option id="extractedOn">{{ meta.extracted_on }}</option>
                         </select>
                     </div>
                 </div>
@@ -152,6 +153,8 @@
                 </div>
             </section>
 
+            </aside>
+
             <!-- Tabs -->
             <nav class="tabs-nav">
                 <button class="tab-btn active" data-tab="overview">
@@ -174,19 +177,19 @@
                     </svg>
                     Timeliness
                 </button>
+                <button class="tab-btn" data-tab="hearingRates">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        <path d="M4 19V5M4 19h16" stroke-width="2" />
+                        <path d="m7 15 3-4 3 2 5-7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                    </svg>
+                    Hearing Rates
+                </button>
                 <button class="tab-btn" data-tab="register">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                         <path d="M9 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6H9z" stroke-width="2" />
                         <path d="M9 2v6h6" stroke-width="2" />
                     </svg>
                     Case Register
-                </button>
-                <button class="tab-btn" data-tab="insights">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                        <path d="M9.5 2c-1.82 0-3.53.5-5 1.35C2.99 4.34 2 6.05 2 8c0 3.98 3.58 7.5 7.5 7.5"
-                            stroke-width="2" />
-                    </svg>
-                    Docket Insights
                 </button>
             </nav>
 
@@ -203,10 +206,9 @@
                             Filings by Case Type
                         </h3>
                         <p class="chart-subtitle">Share of total tracked filings, this court</p>
-                        <canvas id="distributionChart"></canvas>
+                        <div class="overview-chart overview-chart-donut"><canvas id="distributionChart"></canvas></div>
                     </div>
 
-                    <div class="grid-2">
                         <div class="chart-card">
                             <h3 class="chart-title">
                                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor">
@@ -216,10 +218,10 @@
                                 Hearings per Disposed Case
                             </h3>
                             <p class="chart-subtitle">Median count, top case types</p>
-                            <canvas id="hearingsChart"></canvas>
+                            <div class="overview-chart"><canvas id="hearingsChart"></canvas></div>
                         </div>
 
-                        <div class="chart-card">
+                        <div class="chart-card overview-ranking">
                             <h3 class="chart-title">
                                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                                     <polyline points="23 6 13.5 15.5 8.5 10.5 1 18" stroke-width="2" />
@@ -229,23 +231,41 @@
                             <p class="chart-subtitle">Ranked by total filings, this court</p>
                             <div id="topPerformers" class="top-performers-list"></div>
                         </div>
-                    </div>
                 </div>
 
                 <!-- Filing Trends Tab -->
                 <div class="tab-pane" id="trends">
+                    <div class="chart-card trend-controls">
+                        <fieldset class="trend-case-fieldset">
+                            <legend>Case types · select up to 5</legend>
+                            <div id="trendCaseTypes" class="trend-case-options"></div>
+                        </fieldset>
+                        <label class="trend-smoothing" for="trendSmoothing">Display
+                            <select id="trendSmoothing" class="filter-select">
+                                <option value="monthly">Monthly values</option>
+                                <option value="ma12">12-month moving average</option>
+                            </select>
+                        </label>
+                        <p id="trendSelectionStatus" class="chart-subtitle" role="status"></p>
+                    </div>
                     <div class="chart-card">
                         <h3 class="chart-title">
                             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                                 <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" stroke-width="2" />
                             </svg>
-                            Monthly Filing Volume &mdash; Leading Case Type
+                            Monthly Filing Volume
                         </h3>
                         <p class="chart-subtitle" id="trendCaption">Loading&hellip;</p>
-                        <canvas id="trendChart"></canvas>
+                        <div class="trend-plot"><canvas id="trendChart"></canvas></div>
                     </div>
 
                     <div class="chart-card">
+                        <h3 class="chart-title">Monthly Arrival Rate</h3>
+                        <p class="chart-subtitle" id="arrivalRateCaption"></p>
+                        <div class="trend-plot"><canvas id="arrivalRateChart"></canvas></div>
+                    </div>
+
+                    <div class="chart-card trend-summary">
                         <h3 class="chart-title">
                             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                                 <path d="M12 2v20M2 12h20" stroke-width="2" />
@@ -253,8 +273,8 @@
                             </svg>
                             Mean Monthly Filings by Case Type
                         </h3>
-                        <p class="chart-subtitle">Averaged across the full {{ meta.months }}-month grid</p>
-                        <canvas id="meanFilingsChart"></canvas>
+                        <p class="chart-subtitle" id="meanFilingsCaption">Selected case types · full-period workbook averages</p>
+                        <div class="trend-plot"><canvas id="meanFilingsChart"></canvas></div>
                     </div>
                 </div>
 
@@ -297,6 +317,50 @@
                     </div>
                 </div>
 
+                <!-- Hearing Rates Tab -->
+                <div class="tab-pane" id="hearingRates">
+                    <div class="chart-card hearing-rate-controls">
+                        <fieldset class="trend-case-fieldset">
+                            <legend>Case types · select up to 5</legend>
+                            <div id="hearingRateCaseTypes" class="trend-case-options"></div>
+                        </fieldset>
+                        <p id="hearingRateSelectionStatus" class="chart-subtitle" role="status"></p>
+                    </div>
+                    <div class="chart-card hearing-rate-timeseries">
+                        <h3 class="chart-title">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                <path d="M4 19V5M4 19h16" stroke-width="2" />
+                                <path d="m7 15 3-4 3 2 5-7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                            </svg>
+                            Monthly Hearing Rate · Time Series
+                        </h3>
+                        <p class="chart-subtitle" id="hearingRateTrendCaption">Hearings per working day in each month</p>
+                        <div class="rate-plot rate-trend-plot"><canvas id="monthlyHearingRateTrendChart"></canvas></div>
+                    </div>
+                    <div class="chart-card hearing-rate-summary">
+                        <h3 class="chart-title">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                <path d="M4 19V5M4 19h16" stroke-width="2" />
+                                <path d="m7 15 3-4 3 2 5-7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                            </svg>
+                            Monthly Rate Summary
+                        </h3>
+                        <p class="chart-subtitle">Reported mean vs. median hearings per working day</p>
+                        <div class="rate-plot"><canvas id="monthlyHearingRateChart"></canvas></div>
+                    </div>
+                    <div class="chart-card hearing-rate-casewise">
+                        <h3 class="chart-title">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                <path d="M4 19V5M4 19h16" stroke-width="2" />
+                                <path d="m7 15 3-4 3 2 5-7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                            </svg>
+                            Case-wise Rate Summary
+                        </h3>
+                        <p class="chart-subtitle">Reported mean vs. median hearings per elapsed working day</p>
+                        <div class="rate-plot"><canvas id="casewiseHearingRateChart"></canvas></div>
+                    </div>
+                </div>
+
                 <!-- Case Register Tab -->
                 <div class="tab-pane" id="register">
                     <div class="table-card">
@@ -308,6 +372,20 @@
                             Case Register &mdash; <span id="registerCourtName"></span>
                         </h3>
                         <p class="chart-subtitle">Filings, monthly cadence, and disposal benchmarks</p>
+                        <div class="register-controls">
+                            <label for="registerSideFilter">Case side
+                                <select id="registerSideFilter" class="filter-select">
+                                    <option value="all">All cases</option>
+                                    <option value="civil">Civil</option>
+                                    <option value="criminal">Criminal</option>
+                                </select>
+                            </label>
+                            <div class="register-pagination" aria-label="Case register pagination">
+                                <button type="button" id="registerPrev" class="pagination-btn">Previous</button>
+                                <span id="registerPageStatus" role="status"></span>
+                                <button type="button" id="registerNext" class="pagination-btn">Next</button>
+                            </div>
+                        </div>
                         <div class="table-scroll">
                             <table class="data-table">
                                 <thead>
@@ -327,22 +405,13 @@
                     </div>
                 </div>
 
-                <!-- Insights Tab -->
-                <div class="tab-pane" id="insights">
-                    <div id="recommendationsList"></div>
-
-                    <div class="info-card">
-                        <h3>Key Observations</h3>
-                        <ul class="insights-list" id="insightsList"></ul>
-                    </div>
-                </div>
 
             </div>
 
             <!-- Footer -->
             <footer class="dashboard-footer">
                 <p id="footnoteText"></p>
-                <p>Proof of concept &bull; figures sourced from the court's monthly EDA report &bull; working-day-adjusted rates per <code>W(m)</code></p>
+                <p>Proof of concept &bull; figures sourced from district Excel workbooks &bull; working-day-adjusted rates per <code>W(m)</code></p>
             </footer>
         </div>
     </div>

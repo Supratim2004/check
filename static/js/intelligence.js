@@ -1,10 +1,36 @@
-// Tamluk Courts Docket Intelligence — frontend logic
-const API_BASE = '/api';
+// District Courts Docket Intelligence — frontend logic
+const district = document.getElementById('districtFilter').value;
+const API_BASE = '/api/districts/' + encodeURIComponent(district);
+let selectionVersion = 0;
+let selectedTrendTypes = [];
+let selectedHearingRateTypes = [];
+
+async function fetchJSON(url) {
+    const response = await fetch(url);
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || 'Unable to load court data');
+    return data;
+}
+
+function esc(value) {
+    return String(value ?? '—').replace(/[&<>"']/g, c =>
+        ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
+}
+
+function showError(error) {
+    console.error(error);
+    document.getElementById('mainDashboard').style.display = 'none';
+    document.getElementById('loadingScreen').style.display = 'flex';
+    updateProgress(100, error.message + '. Correct the source or reload to retry.');
+}
 
 let metaCache = null;
 let currentCourt = null;
 let currentCourtData = null;
 let charts = {};
+const REGISTER_PAGE_SIZE = 10;
+let registerPage = 0;
+let registerSide = 'all';
 
 const PALETTE = ['#60a5fa', '#a78bfa', '#f472b6', '#fbbf24', '#4ade80', '#f87171', '#38bdf8', '#c084fc'];
 
@@ -19,13 +45,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 async function loadAllData() {
     try {
         updateProgress(15, 'Loading court metadata...');
-        const metaRes = await fetch(`${API_BASE}/meta`);
-        metaCache = await metaRes.json();
+        metaCache = await fetchJSON(`${API_BASE}/meta`);
 
         updateProgress(45, 'Fetching case registers...');
         const firstCourt = document.getElementById('courtFilter').value;
 
-        updateProgress(70, 'Computing working-day rates...');
+        updateProgress(70, 'Loading workbook statistics...');
         await selectCourt(firstCourt);
 
         updateProgress(100, 'Complete!');
@@ -36,12 +61,7 @@ async function loadAllData() {
         }, 400);
 
     } catch (error) {
-        console.error('Error loading data:', error);
-        updateProgress(100, 'Error loading data');
-        setTimeout(() => {
-            document.getElementById('loadingScreen').style.display = 'none';
-            document.getElementById('mainDashboard').style.display = 'block';
-        }, 800);
+        showError(error);
     }
 }
 
@@ -51,12 +71,55 @@ function updateProgress(percent, text) {
 }
 
 function setupEventListeners() {
-    document.getElementById('courtFilter').addEventListener('change', (e) => {
-        selectCourt(e.target.value);
+    document.getElementById('trendSmoothing').addEventListener('change', renderTrendChart);
+    document.getElementById('trendCaseTypes').addEventListener('change', e => {
+        if (e.target.type !== 'checkbox') return;
+        const checked = Array.from(document.querySelectorAll('#trendCaseTypes input:checked'));
+        if (checked.length > 5 || checked.length === 0) {
+            e.target.checked = !e.target.checked;
+            return;
+        }
+        selectedTrendTypes = checked.map(input => input.value);
+        updateTrendSelection();
+        renderTrendChart();
+        renderMeanFilingsChart(currentCourtData);
     });
-
-    document.getElementById('caseTypeFilter').addEventListener('change', () => {
+    document.getElementById('hearingRateCaseTypes').addEventListener('change', e => {
+        if (e.target.type !== 'checkbox') return;
+        const checked = Array.from(document.querySelectorAll('#hearingRateCaseTypes input:checked'));
+        if (checked.length > 5 || checked.length === 0) {
+            e.target.checked = !e.target.checked;
+            return;
+        }
+        selectedHearingRateTypes = checked.map(input => input.value);
+        updateHearingRateSelection();
+        renderHearingRateCharts(currentCourtData);
+    });
+    document.getElementById('registerSideFilter').addEventListener('change', e => {
+        registerSide = e.target.value;
+        registerPage = 0;
         renderRegisterTable();
+    });
+    document.getElementById('registerPrev').addEventListener('click', () => {
+        if (registerPage > 0) {
+            registerPage -= 1;
+            renderRegisterTable();
+        }
+    });
+    document.getElementById('registerNext').addEventListener('click', () => {
+        const totalPages = Math.ceil(filteredRegisterRows().length / REGISTER_PAGE_SIZE);
+        if (registerPage + 1 < totalPages) {
+            registerPage += 1;
+            renderRegisterTable();
+        }
+    });
+    document.getElementById('districtFilter').addEventListener('change', e => {
+        const url = new URL(window.location.href);
+        url.searchParams.set('district', e.target.value);
+        window.location.assign(url);
+    });
+    document.getElementById('courtFilter').addEventListener('change', (e) => {
+        selectCourt(e.target.value).catch(showError);
     });
 
     document.querySelectorAll('.tab-btn').forEach(btn => {
@@ -77,43 +140,48 @@ function fmt(n) {
 }
 
 async function selectCourt(code) {
+    const version = ++selectionVersion;
+    document.getElementById('exportBtn').disabled = true;
+    const path = `${API_BASE}/court/${encodeURIComponent(code)}`;
+    let results;
+    try {
+        results = await Promise.all([
+            fetchJSON(path), fetchJSON(path + '/trend'),
+        ]);
+    } catch (error) {
+        if (version !== selectionVersion) return;
+        throw error;
+    }
+    if (version !== selectionVersion) return;
+    const [courtData, trendData] = results;
     currentCourt = code;
-    const [courtRes, trendRes, insightsRes] = await Promise.all([
-        fetch(`${API_BASE}/court/${code}`),
-        fetch(`${API_BASE}/court/${code}/trend`),
-        fetch(`${API_BASE}/court/${code}/insights`),
-    ]);
-    currentCourtData = await courtRes.json();
-    const trendData = await trendRes.json();
-    const insightsData = await insightsRes.json();
+    currentCourtData = courtData;
+    registerPage = 0;
+    document.getElementById('exportBtn').disabled = false;
 
-    populateCaseTypeFilter(currentCourtData);
+    document.getElementById('extractedOn').textContent = courtData.extracted_on || 'Not provided';
     renderStatCards(code, currentCourtData);
     renderDistributionChart(currentCourtData);
     renderHearingsChart(currentCourtData);
     renderTopPerformers(currentCourtData);
-    renderTrendChart(trendData);
+    populateTrendTypes(currentCourtData);
+    renderTrendChart();
     renderMeanFilingsChart(currentCourtData);
     renderDisposalChart(currentCourtData);
     renderGapChart(currentCourtData);
     renderOutliers(currentCourtData);
+    populateHearingRateTypes(currentCourtData);
+    renderHearingRateCharts(currentCourtData);
     renderRegisterTable();
-    renderInsights(insightsData);
 
     document.getElementById('footnoteText').textContent =
-        `Gap and hearing-count measures use this court's listing-reliable cut-off (${currentCourtData.listing_cutoff}); ` +
-        `arrivals and disposal use the full ${metaCache.meta.window_start}\u2013${metaCache.meta.window_end} window. ` +
+        `Gap and hearing-count measures use this court's listing-reliable cut-off (${currentCourtData.listing_cutoff || 'not provided'}); ` +
+        `arrivals and disposal use the full ${currentCourtData.window_start}\u2013${currentCourtData.window_end} window. ` +
         trendData.note;
 }
 
-function populateCaseTypeFilter(courtData) {
-    const sel = document.getElementById('caseTypeFilter');
-    sel.innerHTML = '<option value="all">All Case Types</option>' +
-        courtData.arrivals.map(a => `<option value="${a.case_type}">${a.case_type}</option>`).join('');
-}
-
 function renderStatCards(code, courtData) {
-    const totals = metaCache.court_totals[code];
+    const totals = {total_filings: courtData.arrivals.reduce((sum, row) => sum + row.filings, 0), case_types_tracked: courtData.arrivals.length};
     const top = courtData.arrivals[0];
     const disposalByType = {};
     courtData.disposal.forEach(d => disposalByType[d.case_type] = d);
@@ -139,6 +207,8 @@ function destroy(key) {
 
 function renderDistributionChart(courtData) {
     const rows = courtData.arrivals.slice(0, 7);
+    const remainder = courtData.arrivals.slice(7).reduce((sum, row) => sum + row.filings, 0);
+    if (remainder) rows.push({case_type: 'Other case types', filings: remainder});
     destroy('dist');
     charts.dist = new Chart(document.getElementById('distributionChart'), {
         type: 'doughnut',
@@ -153,6 +223,7 @@ function renderDistributionChart(courtData) {
         },
         options: {
             responsive: true,
+            maintainAspectRatio: false,
             plugins: { legend: { position: 'bottom', labels: { color: '#c4b5fd', boxWidth: 12 } } },
             cutout: '55%',
         }
@@ -176,6 +247,7 @@ function renderHearingsChart(courtData) {
         options: {
             indexAxis: 'y',
             responsive: true,
+            maintainAspectRatio: false,
             plugins: { legend: { display: false } },
             scales: {
                 x: { ticks: { color: '#c4b5fd' }, grid: { color: 'rgba(148,163,184,0.1)' } },
@@ -193,8 +265,8 @@ function renderTopPerformers(courtData) {
             <div class="performer-info">
                 <div class="performer-rank">${i + 1}</div>
                 <div>
-                    <div class="performer-name">${r.case_type}</div>
-                    <div class="performer-sub">${r.side}</div>
+                    <div class="performer-name">${esc(r.case_type)}</div>
+                    <div class="performer-sub">${esc(r.side)}</div>
                 </div>
             </div>
             <div class="performer-value">${fmt(r.filings)}</div>
@@ -202,37 +274,100 @@ function renderTopPerformers(courtData) {
     `).join('');
 }
 
-function renderTrendChart(trendData) {
-    document.getElementById('trendCaption').textContent =
-        `${trendData.case_type} \u2014 illustrative monthly shape (see footnote)`;
-    destroy('trend');
-    charts.trend = new Chart(document.getElementById('trendChart'), {
+function populateTrendTypes(courtData) {
+    const available = courtData.arrivals.filter(row =>
+        Object.prototype.hasOwnProperty.call(courtData.arrival_series, row.case_type));
+    selectedTrendTypes = available.slice(0, 3).map(row => row.case_type);
+    const container = document.getElementById('trendCaseTypes');
+    container.replaceChildren(...available.map(row => {
+        const label = document.createElement('label');
+        const input = document.createElement('input');
+        input.type = 'checkbox';
+        input.value = row.case_type;
+        input.checked = selectedTrendTypes.includes(row.case_type);
+        label.append(input, document.createTextNode(row.case_type));
+        return label;
+    }));
+    updateTrendSelection();
+}
+
+function updateTrendSelection() {
+    document.querySelectorAll('#trendCaseTypes input').forEach(input => {
+        input.disabled = (!input.checked && selectedTrendTypes.length >= 5) ||
+            (input.checked && selectedTrendTypes.length === 1);
+    });
+    document.getElementById('trendSelectionStatus').textContent = selectedTrendTypes.length
+        ? `${selectedTrendTypes.length} of 5 selected. Only case types with monthly records are listed.`
+        : 'No monthly records are available for this court.';
+}
+
+function movingAverage12(labels, values) {
+    return values.map((_, index) => {
+        if (index < 11) return null;
+        const window = values.slice(index - 11, index + 1);
+        if (window.some(value => !Number.isFinite(value))) return null;
+        const serial = month => {
+            const [year, monthNumber] = month.split('-').map(Number);
+            return year * 12 + monthNumber;
+        };
+        if (serial(labels[index]) - serial(labels[index - 11]) !== 11) return null;
+        return window.reduce((sum, value) => sum + value, 0) / 12;
+    });
+}
+
+function renderTrendChart() {
+    if (!currentCourtData) return;
+    const smooth = document.getElementById('trendSmoothing').value === 'ma12';
+    document.getElementById('trendCaption').textContent = smooth
+        ? 'Trailing 12-month average. Requires 12 consecutive months; incomplete windows remain blank.'
+        : 'Actual monthly filings. Hover to compare case types; click a legend to hide a trace.';
+    const hasRates = selectedTrendTypes.some(name =>
+        currentCourtData.arrival_rate_series[name]?.some(Number.isFinite));
+    document.getElementById('arrivalRateCaption').textContent = !hasRates
+        ? 'Working-day data is unavailable for the selected case types.'
+        : smooth
+            ? '12-month mean of monthly filings per working day. Zero or missing working days leave gaps.'
+            : 'Filings divided by working days in each month. Zero or missing working days leave gaps.';
+    renderFilingSeries('trend', 'trendChart', currentCourtData.arrival_series,
+        smooth ? 'Filings / month (12-month MA)' : 'Filings', smooth);
+    renderFilingSeries('arrivalRate', 'arrivalRateChart', currentCourtData.arrival_rate_series,
+        smooth ? 'Filings / working day (12-month MA)' : 'Filings / working day', smooth);
+}
+
+function renderFilingSeries(key, canvasId, series, unit, smooth) {
+    const labels = currentCourtData.month_labels;
+    destroy(key);
+    charts[key] = new Chart(document.getElementById(canvasId), {
         type: 'line',
         data: {
-            labels: trendData.labels,
-            datasets: [{
-                data: trendData.values,
-                borderColor: '#a78bfa',
-                backgroundColor: 'rgba(139,92,246,0.15)',
-                fill: true,
-                tension: 0.35,
-                pointRadius: 0,
-                borderWidth: 2,
-            }]
+            labels,
+            datasets: selectedTrendTypes.slice(0, 5).map((name, index) => ({
+                label: name,
+                data: smooth ? movingAverage12(labels, series[name]) : series[name],
+                borderColor: PALETTE[index],
+                backgroundColor: PALETTE[index],
+                fill: false, tension: 0, spanGaps: false, pointRadius: 0, borderWidth: 2,
+            })),
         },
         options: {
             responsive: true,
-            plugins: { legend: { display: false } },
+            maintainAspectRatio: false,
+            interaction: {mode: 'index', intersect: false},
+            plugins: {
+                legend: {position: 'bottom', labels: {boxWidth: 12}},
+                tooltip: {callbacks: {label: context =>
+                    context.dataset.label + ': ' + Number(context.parsed.y).toLocaleString('en-IN', {maximumFractionDigits: 3})}},
+            },
             scales: {
-                x: { ticks: { color: '#94a3b8', maxTicksLimit: 8 }, grid: { color: 'rgba(148,163,184,0.08)' } },
-                y: { ticks: { color: '#94a3b8' }, grid: { color: 'rgba(148,163,184,0.08)' } }
-            }
-        }
+                x: {ticks: {maxTicksLimit: 6}},
+                y: {beginAtZero: true, title: {display: true, text: unit}},
+            },
+        },
     });
 }
 
 function renderMeanFilingsChart(courtData) {
-    const rows = courtData.arrivals.slice(0, 8);
+    const rows = selectedTrendTypes.map(name => courtData.arrivals.find(row => row.case_type === name));
     destroy('meanFilings');
     charts.meanFilings = new Chart(document.getElementById('meanFilingsChart'), {
         type: 'bar',
@@ -241,12 +376,13 @@ function renderMeanFilingsChart(courtData) {
             datasets: [{
                 label: 'Mean filings / month',
                 data: rows.map(r => r.mean),
-                backgroundColor: 'rgba(167,139,250,0.7)',
+                backgroundColor: rows.map((_, index) => PALETTE[index]),
                 borderRadius: 4,
             }]
         },
         options: {
             responsive: true,
+            maintainAspectRatio: false,
             plugins: { legend: { display: false } },
             scales: {
                 x: { ticks: { color: '#c4b5fd', maxRotation: 30, minRotation: 30 }, grid: { display: false } },
@@ -303,16 +439,103 @@ function renderGapChart(courtData) {
 }
 
 function renderOutliers(courtData) {
-    const flagged = courtData.gap.filter(g => g.p90 > 100);
+    const flagged = courtData.gap.filter(g => g.p90 !== null && g.p90 > 100);
     document.getElementById('outlierCount').textContent = `${flagged.length} case type(s) flagged \u2014 90th-pct listing gap over 100 working days`;
     const el = document.getElementById('outliersList');
     el.innerHTML = flagged.map(g => `
         <div class="anomaly-card">
-            <div class="anomaly-date">${g.case_type}</div>
+            <div class="anomaly-date">${esc(g.case_type)}</div>
             <div class="anomaly-value">${g.p90} wd</div>
-            <div class="anomaly-score">90th pct \u2014 median ${g.median} wd</div>
+            <div class="anomaly-score">90th pct \u2014 median ${fmt(g.median)} wd</div>
         </div>
     `).join('') || '<p style="color:#94a3b8;">No case types exceed the 100-working-day threshold at this court.</p>';
+}
+
+function populateHearingRateTypes(courtData) {
+    const available = (courtData.hearing_rate_monthly || []).filter(row =>
+        Object.prototype.hasOwnProperty.call(courtData.hearing_rate_series || {}, row.case_type));
+    selectedHearingRateTypes = available.slice(0, 3).map(row => row.case_type);
+    const container = document.getElementById('hearingRateCaseTypes');
+    container.replaceChildren(...available.map(row => {
+        const label = document.createElement('label');
+        const input = document.createElement('input');
+        input.type = 'checkbox';
+        input.value = row.case_type;
+        input.checked = selectedHearingRateTypes.includes(row.case_type);
+        label.append(input, document.createTextNode(row.case_type));
+        return label;
+    }));
+    updateHearingRateSelection();
+}
+
+function updateHearingRateSelection() {
+    document.querySelectorAll('#hearingRateCaseTypes input').forEach(input => {
+        input.disabled = (!input.checked && selectedHearingRateTypes.length >= 5) ||
+            (input.checked && selectedHearingRateTypes.length === 1);
+    });
+    document.getElementById('hearingRateSelectionStatus').textContent = selectedHearingRateTypes.length
+        ? `${selectedHearingRateTypes.length} of 5 selected. Traces use the workbook's monthly hearing-rate panel.`
+        : 'No hearing-rate series are available for this court.';
+}
+
+function renderHearingRateCharts(courtData) {
+    renderHearingRateTrend(courtData);
+    const selected = new Set(selectedHearingRateTypes);
+    renderRateChart('monthlyHearingRate', 'monthlyHearingRateChart',
+        (courtData.hearing_rate_monthly || []).filter(row => selected.has(row.case_type)),
+        'Mean hearings / working day', 'Median hearings / working day', 'mean', 'median');
+    renderRateChart('casewiseHearingRate', 'casewiseHearingRateChart',
+        (courtData.hearing_rate_casewise || []).filter(row => selected.has(row.case_type)),
+        'Mean hearings / elapsed working day', 'Median hearings / elapsed working day', 'wd_mean', 'wd_median');
+}
+
+function renderHearingRateTrend(courtData) {
+    const labels = courtData.month_labels;
+    destroy('monthlyHearingRateTrend');
+    charts.monthlyHearingRateTrend = new Chart(document.getElementById('monthlyHearingRateTrendChart'), {
+        type: 'line',
+        data: {
+            labels,
+            datasets: selectedHearingRateTypes.slice(0, 5).map((name, index) => ({
+                label: name,
+                data: courtData.hearing_rate_series[name],
+                borderColor: PALETTE[index], backgroundColor: PALETTE[index],
+                fill: false, tension: 0, spanGaps: false, pointRadius: 0, borderWidth: 2,
+            })),
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            interaction: {mode: 'index', intersect: false},
+            plugins: {legend: {position: 'bottom', labels: {boxWidth: 12}}},
+            scales: {
+                x: {ticks: {maxTicksLimit: 6}},
+                y: {beginAtZero: true, title: {display: true, text: 'Hearings / working day'}},
+            },
+        },
+    });
+}
+
+function renderRateChart(key, canvasId, rows, meanLabel, medianLabel, meanKey, medianKey) {
+    const displayRows = (rows || []).filter(row => Number.isFinite(row[meanKey]) || Number.isFinite(row[medianKey]));
+    destroy(key);
+    charts[key] = new Chart(document.getElementById(canvasId), {
+        type: 'bar',
+        data: {
+            labels: displayRows.map(row => row.case_type),
+            datasets: [
+                { label: meanLabel, data: displayRows.map(row => row[meanKey]), backgroundColor: 'rgba(96,165,250,0.78)', borderRadius: 4 },
+                { label: medianLabel, data: displayRows.map(row => row[medianKey]), backgroundColor: 'rgba(244,114,182,0.68)', borderRadius: 4 },
+            ],
+        },
+        options: {
+            indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { position: 'bottom', labels: { color: '#c4b5fd' } } },
+            scales: {
+                x: { beginAtZero: true, ticks: { color: '#94a3b8' }, grid: { color: 'rgba(148,163,184,0.08)' } },
+                y: { ticks: { color: '#e2e8f0' }, grid: { display: false } },
+            },
+        },
+    });
 }
 
 function renderRegisterTable() {
@@ -320,19 +543,22 @@ function renderRegisterTable() {
     document.getElementById('registerCourtName').textContent =
         metaCache.court_totals[currentCourt].full_name;
 
-    const filterVal = document.getElementById('caseTypeFilter').value;
     const dispByType = {};
     currentCourtData.disposal.forEach(d => dispByType[d.case_type] = d);
 
-    const rows = currentCourtData.arrivals.filter(a => filterVal === 'all' || a.case_type === filterVal);
+    const rows = filteredRegisterRows();
+    const pageCount = Math.max(1, Math.ceil(rows.length / REGISTER_PAGE_SIZE));
+    registerPage = Math.min(registerPage, pageCount - 1);
+    const start = registerPage * REGISTER_PAGE_SIZE;
+    const visibleRows = rows.slice(start, start + REGISTER_PAGE_SIZE);
 
-    document.getElementById('registerBody').innerHTML = rows.map(a => {
+    document.getElementById('registerBody').innerHTML = visibleRows.map(a => {
         const d = dispByType[a.case_type];
-        const sideClass = a.side.toLowerCase();
+        const sideClass = a.side === 'Civil' ? 'civil' : a.side === 'Criminal' ? 'criminal' : '';
         return `
             <tr>
-                <td>${a.case_type}</td>
-                <td><span class="side-pill ${sideClass}">${a.side}</span></td>
+                <td>${esc(a.case_type)}</td>
+                <td><span class="side-pill ${sideClass}">${esc(a.side)}</span></td>
                 <td>${fmt(a.filings)}</td>
                 <td>${a.mean}</td>
                 <td>${a.median}</td>
@@ -341,47 +567,26 @@ function renderRegisterTable() {
             </tr>
         `;
     }).join('');
+    document.getElementById('registerPageStatus').textContent = rows.length
+        ? `${start + 1}–${Math.min(start + REGISTER_PAGE_SIZE, rows.length)} of ${rows.length}`
+        : '0 cases';
+    document.getElementById('registerPrev').disabled = registerPage === 0;
+    document.getElementById('registerNext').disabled = registerPage >= pageCount - 1;
 }
 
-function renderInsights(insightsData) {
-    document.getElementById('insightsList').innerHTML =
-        insightsData.insights.map(i => `<li>${i}</li>`).join('');
-
-    const iconAlert = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" stroke-width="2"/><line x1="12" y1="9" x2="12" y2="13" stroke-width="2"/><line x1="12" y1="17" x2="12.01" y2="17" stroke-width="2"/></svg>`;
-
-    document.getElementById('recommendationsList').innerHTML = insightsData.recommendations.map(r => {
-        const cls = r.priority === 'high' ? 'rec-alert' : r.priority === 'medium' ? 'rec-warning' : 'rec-info';
-        const badgeCls = `priority-${r.priority}`;
-        return `
-            <div class="recommendation-card ${cls}">
-                <div class="rec-header">
-                    <div class="rec-title-group">
-                        ${iconAlert}
-                        <div class="rec-title">${r.title}</div>
-                    </div>
-                    <span class="priority-badge ${badgeCls}">${r.priority.toUpperCase()}</span>
-                </div>
-                <p class="rec-description">${r.description}</p>
-                <div class="rec-action-box">
-                    <div class="rec-label">Recommended Action</div>
-                    <div class="rec-action">${r.action}</div>
-                </div>
-                <div class="rec-impact-box">
-                    <div class="rec-label">Expected Impact</div>
-                    <div class="rec-impact">${r.impact}</div>
-                </div>
-            </div>
-        `;
-    }).join('') || '<p style="color:#94a3b8;">No flagged items for this court under current thresholds.</p>';
+function filteredRegisterRows() {
+    if (!currentCourtData) return [];
+    return currentCourtData.arrivals.filter(row =>
+        registerSide === 'all' || row.side.toLowerCase() === registerSide);
 }
 
 function exportCurrentCourt() {
     if (!currentCourtData) return;
-    const blob = new Blob([JSON.stringify(currentCourtData, null, 2)], { type: 'application/json' });
+    const blob = new Blob([JSON.stringify({district, court: currentCourt, ...currentCourtData}, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${currentCourt.replace(/[^a-z0-9]/gi, '_')}_docket_data.json`;
+    a.download = `${district.replace(/[^a-z0-9]/gi, '_')}_${currentCourt.replace(/[^a-z0-9]/gi, '_')}_docket_data.json`;
     a.click();
     URL.revokeObjectURL(url);
 }
