@@ -711,7 +711,14 @@ function exportChartExcel(key, title) {
     XLSX.writeFile(workbook, `${sanitizeFilename(title)}.xlsx`);
 }
 
-/* ---- Zoom modal: real click-and-drag panning + button/wheel zoom ---- */
+/* ---- Zoom modal: a LIVE cloned chart (not a snapshot) ----
+   Opening the modal builds a fresh Chart.js instance with the same type,
+   data and options as the on-page chart, sized to fill the modal. Because
+   it's a real canvas, hovering still shows per-point tooltips while zoomed
+   or panned — nothing is "captured" at the moment you clicked. Pan/zoom is
+   done with a CSS transform on that canvas; Chart.js reads the canvas's own
+   on-screen size for hit-testing, so hover position stays accurate even
+   while scaled and dragged. */
 
 const ZOOM_MIN = 1;
 const ZOOM_MAX = 5;
@@ -719,11 +726,16 @@ const ZOOM_STEP = 0.25;
 
 let zoomState = { scale: 1, x: 0, y: 0 };
 let dragState = null; // { pointerId, startClientX, startClientY, startX, startY }
+let zoomChartInstance = null;
+
+function currentZoomCanvas() {
+    return document.querySelector('#chartZoomImageWrap canvas');
+}
 
 function applyZoomTransform() {
-    const img = document.getElementById('chartZoomImage');
-    if (!img) return;
-    img.style.transform = `translate(-50%, -50%) translate(${zoomState.x}px, ${zoomState.y}px) scale(${zoomState.scale})`;
+    const canvas = currentZoomCanvas();
+    if (!canvas) return;
+    canvas.style.transform = `translate(${zoomState.x}px, ${zoomState.y}px) scale(${zoomState.scale})`;
 }
 
 function setZoomScale(nextScale) {
@@ -732,15 +744,37 @@ function setZoomScale(nextScale) {
     applyZoomTransform();
 }
 
+// Deep-clone a chart's data/options as plain JSON. Our datasets only ever
+// contain strings/numbers/arrays (colors as hex strings, plain numbers), so
+// a JSON round-trip is a safe, complete deep clone with no shared references
+// back to the original chart.
+function cloneChartConfig(chart) {
+    return {
+        type: chart.config.type,
+        data: JSON.parse(JSON.stringify(chart.config.data)),
+        options: {
+            ...JSON.parse(JSON.stringify(chart.config.options || {})),
+            responsive: true,
+            maintainAspectRatio: false,
+        },
+    };
+}
+
 function openChartZoom(key, title) {
     const chart = charts[key];
     if (!chart) return;
     const modal = document.getElementById('chartZoomModal');
-    const img = document.getElementById('chartZoomImage');
-    img.src = captureChartImage(chart);
+    const wrap = document.getElementById('chartZoomImageWrap');
+
+    if (zoomChartInstance) { zoomChartInstance.destroy(); zoomChartInstance = null; }
+    wrap.innerHTML = '';
+    const canvas = document.createElement('canvas');
+    wrap.appendChild(canvas);
+    zoomChartInstance = new Chart(canvas, cloneChartConfig(chart));
+
     zoomState = { scale: 1, x: 0, y: 0 };
-    img.classList.remove('dragging');
     applyZoomTransform();
+
     document.getElementById('chartZoomTitle').textContent = title;
     modal.classList.add('open');
     modal.setAttribute('aria-hidden', 'false');
@@ -751,22 +785,24 @@ function closeChartZoom() {
     modal.classList.remove('open');
     modal.setAttribute('aria-hidden', 'true');
     dragState = null;
+    if (zoomChartInstance) { zoomChartInstance.destroy(); zoomChartInstance = null; }
+    document.getElementById('chartZoomImageWrap').innerHTML = '';
 }
 
 function withSnap(fn) {
     // Briefly enables a CSS transition so button clicks feel smooth, then
     // removes it again so dragging afterwards stays immediate (no lag).
-    const img = document.getElementById('chartZoomImage');
-    img.classList.add('snap');
+    const canvas = currentZoomCanvas();
+    if (!canvas) { fn(); return; }
+    canvas.classList.add('snap');
     fn();
-    window.setTimeout(() => img.classList.remove('snap'), 160);
+    window.setTimeout(() => canvas.classList.remove('snap'), 160);
 }
 
 function setupChartZoomModal() {
     const modal = document.getElementById('chartZoomModal');
     if (!modal) return;
     const wrap = document.getElementById('chartZoomImageWrap');
-    const img = document.getElementById('chartZoomImage');
 
     document.getElementById('chartZoomIn').addEventListener('click', () => withSnap(() => setZoomScale(zoomState.scale + ZOOM_STEP)));
     document.getElementById('chartZoomOut').addEventListener('click', () => withSnap(() => setZoomScale(zoomState.scale - ZOOM_STEP)));
@@ -785,12 +821,16 @@ function setupChartZoomModal() {
         setZoomScale(zoomState.scale + (e.deltaY < 0 ? ZOOM_STEP : -ZOOM_STEP));
     }, { passive: false });
 
-    // Click-and-drag panning. Pointer capture keeps the drag going even if
-    // the cursor moves outside the image while the button is held.
-    img.addEventListener('pointerdown', e => {
+    // Click-and-drag panning, delegated on the wrap so it keeps working even
+    // though the canvas inside is replaced each time the modal opens.
+    // Pointer capture keeps the drag going even if the cursor moves outside
+    // the canvas while the button is held.
+    wrap.addEventListener('pointerdown', e => {
         if (zoomState.scale <= ZOOM_MIN) return; // nothing to pan at 1x
-        img.setPointerCapture(e.pointerId);
-        img.classList.add('dragging');
+        const canvas = currentZoomCanvas();
+        if (!canvas) return;
+        wrap.setPointerCapture(e.pointerId);
+        canvas.classList.add('dragging');
         dragState = {
             pointerId: e.pointerId,
             startClientX: e.clientX,
@@ -800,7 +840,7 @@ function setupChartZoomModal() {
         };
     });
 
-    img.addEventListener('pointermove', e => {
+    wrap.addEventListener('pointermove', e => {
         if (!dragState || dragState.pointerId !== e.pointerId) return;
         zoomState.x = dragState.startX + (e.clientX - dragState.startClientX);
         zoomState.y = dragState.startY + (e.clientY - dragState.startClientY);
@@ -809,11 +849,12 @@ function setupChartZoomModal() {
 
     const endDrag = e => {
         if (!dragState || (e && dragState.pointerId !== e.pointerId)) return;
-        img.classList.remove('dragging');
+        const canvas = currentZoomCanvas();
+        if (canvas) canvas.classList.remove('dragging');
         dragState = null;
     };
-    img.addEventListener('pointerup', endDrag);
-    img.addEventListener('pointercancel', endDrag);
+    wrap.addEventListener('pointerup', endDrag);
+    wrap.addEventListener('pointercancel', endDrag);
 
     document.addEventListener('keydown', e => {
         if (e.key === 'Escape' && modal.classList.contains('open')) closeChartZoom();
