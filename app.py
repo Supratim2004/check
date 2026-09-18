@@ -1,44 +1,10 @@
-import math
-import random
-from flask import Flask, jsonify, render_template
-
-from data import META, COURTS, TREND_NOTE
+import os
+from pathlib import Path
+from flask import Flask, jsonify, render_template, request, abort
+from data import DataError, district_folders, load_district
 
 app = Flask(__name__)
-
-
-def month_labels(n=198):
-    labels = []
-    y, m = 2010, 1
-    for _ in range(n):
-        labels.append(f"{y}-{m:02d}")
-        m += 1
-        if m > 12:
-            m = 1
-            y += 1
-        if y > 2026 or (y == 2026 and m > 6):
-            break
-    return labels
-
-
-def illustrative_series(mean_level, n=198, seed=0):
-    """
-    Bounded, clearly-labeled illustrative monthly shape mirroring the report's
-    qualitative description (growth after ~2016-17 digitisation, a dip around
-    2020-21, recent moderation), scaled to the case type's real reported mean.
-    NOT the underlying raw series -- the PDF supplies summary stats + chart
-    images, not month-by-month counts.
-    """
-    rnd = random.Random(seed)
-    out = []
-    for i in range(n):
-        t = i / max(n - 1, 1)
-        base = 0.35 + 0.65 * (1 / (1 + math.exp(-10 * (t - 0.35))))
-        dip = 0.35 * math.exp(-((t - 0.62) ** 2) / (2 * 0.06 ** 2))
-        noise = rnd.uniform(-0.08, 0.08)
-        out.append(round(max(mean_level * (base - dip + noise), 0), 1))
-    return out
-
+app.config["DATA_DIR"] = os.environ.get("DATA_DIR", str(Path(__file__).parent / "Data"))
 
 def build_insights(code, c):
     """Derive simple, explainable insights + recommendation cards from the
@@ -50,17 +16,17 @@ def build_insights(code, c):
     total_filings = sum(a["filings"] for a in arrivals)
     busiest = max(arrivals, key=lambda a: a["filings"])
 
-    disposal_rows = list(disposal.values())
+    disposal_rows = [d for d in disposal.values() if d["median"] is not None and d["p90"] is not None]
     slowest = max(disposal_rows, key=lambda d: d["median"]) if disposal_rows else None
     fastest = min(disposal_rows, key=lambda d: d["median"]) if disposal_rows else None
 
-    gap_rows = list(gaps.values())
+    gap_rows = [g for g in gaps.values() if g["p90"] is not None and g["median"] is not None]
     worst_gap = max(gap_rows, key=lambda g: g["p90"]) if gap_rows else None
 
     insights = [
         f"{busiest['case_type']} dominates the docket at {c['full_name']}, "
         f"accounting for {busiest['filings']:,} of {total_filings:,} tracked filings "
-        f"({busiest['filings'] / total_filings * 100:.0f}%).",
+        f"({(busiest['filings'] / total_filings * 100 if total_filings else 0):.0f}%).",
     ]
     if slowest:
         insights.append(
@@ -80,9 +46,9 @@ def build_insights(code, c):
             f"{worst_gap['median']}."
         )
     insights.append(
-        f"Gap and hearing-count measures are only reliable from {c['listing_cutoff']} "
+        f"Gap and hearing-count measures are only reliable from {(c['listing_cutoff'] or 'an unspecified cutoff')} "
         f"onward for this court; arrivals and disposal use the full "
-        f"{META['window_start']}\u2013{META['window_end']} window."
+        f"{c['window_start']}\u2013{c['window_end']} window."
     )
 
     recommendations = []
@@ -124,49 +90,83 @@ def build_insights(code, c):
     return {"insights": insights, "recommendations": recommendations}
 
 
+def selected_district(district=None):
+    folders = district_folders(app.config["DATA_DIR"])
+    if not folders:
+        raise DataError("No district workbooks found. Add Data/<district>/Monthly_<court>.xlsx.")
+    district = district or request.args.get("district") or next(iter(folders))
+    if district not in folders:
+        abort(404, description="Unknown district")
+    return load_district(app.config["DATA_DIR"], district)
+
+
+def selected_court(code, district=None):
+    data = selected_district(district)
+    if code not in data["courts"]:
+        abort(404, description="Unknown court code in this district")
+    return data["courts"][code]
+
+
+@app.errorhandler(DataError)
+def data_error(error):
+    return jsonify({"error": str(error)}), 503
+
+
+@app.errorhandler(404)
+def not_found(error):
+    return jsonify({"error": error.description}), 404
+
+
 @app.route("/")
 def index():
-    return render_template("index.html", meta=META, courts=list(COURTS.keys()))
+    data = selected_district()
+    return render_template("index.html", meta=data["meta"], courts=list(data["courts"]),
+                           districts=list(district_folders(app.config["DATA_DIR"])))
+
+
+@app.route("/api/districts")
+def api_districts():
+    return jsonify({"districts": [{"id": name, "name": name}
+                    for name in district_folders(app.config["DATA_DIR"])]})
 
 
 @app.route("/api/meta")
-def api_meta():
-    totals = {}
-    for code, c in COURTS.items():
-        totals[code] = {
-            "full_name": c["full_name"],
-            "listing_cutoff": c["listing_cutoff"],
-            "total_filings": sum(a["filings"] for a in c["arrivals"]),
-            "case_types_tracked": len(c["arrivals"]),
-        }
-    grand_total = sum(v["total_filings"] for v in totals.values())
-    return jsonify({"meta": META, "court_totals": totals, "grand_total_filings": grand_total})
+@app.route("/api/districts/<district>/meta")
+def api_meta(district=None):
+    data = selected_district(district)
+    totals = {code: {
+        "full_name": c["full_name"], "listing_cutoff": c["listing_cutoff"],
+        "total_filings": sum(a["filings"] for a in c["arrivals"]),
+        "case_types_tracked": len(c["arrivals"]),
+    } for code, c in data["courts"].items()}
+    return jsonify({"meta": data["meta"], "court_totals": totals,
+                    "grand_total_filings": sum(v["total_filings"] for v in totals.values())})
 
 
 @app.route("/api/court/<code>")
-def api_court(code):
-    if code not in COURTS:
-        return jsonify({"error": "unknown court code"}), 404
-    return jsonify(COURTS[code])
+@app.route("/api/districts/<district>/court/<code>")
+def api_court(code, district=None):
+    return jsonify(selected_court(code, district))
 
 
 @app.route("/api/court/<code>/trend")
-def api_court_trend(code):
-    if code not in COURTS:
-        return jsonify({"error": "unknown court code"}), 404
-    c = COURTS[code]
-    top = c["arrivals"][0]
-    labels = month_labels()
-    series = illustrative_series(top["mean"], n=len(labels), seed=hash(code) % 1000)
-    return jsonify({"case_type": top["case_type"], "labels": labels, "values": series, "note": TREND_NOTE})
+@app.route("/api/districts/<district>/court/<code>/trend")
+def api_court_trend(code, district=None):
+    c = selected_court(code, district)
+    top = c["arrivals"][0]["case_type"]
+    values = c["arrival_series"].get(top)
+    return jsonify({"case_type": top, "labels": c["month_labels"] if values is not None else [],
+                    "values": values if values is not None else [], "available": values is not None,
+                    "note": ("Actual monthly filing counts from " + c["source_file"] +
+                             ". Missing observations are shown as gaps.") if values is not None else
+                            "Monthly filing counts are unavailable for this case type."})
 
 
 @app.route("/api/court/<code>/insights")
-def api_court_insights(code):
-    if code not in COURTS:
-        return jsonify({"error": "unknown court code"}), 404
-    return jsonify(build_insights(code, COURTS[code]))
+@app.route("/api/districts/<district>/court/<code>/insights")
+def api_court_insights(code, district=None):
+    return jsonify(build_insights(code, selected_court(code, district)))
 
 
 if __name__ == "__main__":
-    app.run(debug=True, host="0.0.0.0", port=5000)
+    app.run(debug=True, host="0.0.0.0", port=8080)
