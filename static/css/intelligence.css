@@ -780,13 +780,14 @@ canvas.zoomable-chart { cursor: zoom-in; }
     flex: 0 0 auto;
 }
 
-.chart-zoom-title { font-weight: 700; color: var(--accent-deep); }
-.chart-zoom-hint { font-size: 0.75rem; color: var(--muted-ink); margin-right: auto; margin-left: 1rem; }
+.chart-zoom-title { font-weight: 700; color: var(--accent-deep); white-space: nowrap; }
+.chart-zoom-hint { font-size: 0.75rem; color: var(--muted-ink); margin-right: auto; margin-left: 1rem; white-space: nowrap; }
 .chart-zoom-actions { display: flex; gap: 0.5rem; }
 .chart-tool-btn-close { font-size: 1rem; line-height: 1; padding: 0.35rem 0.65rem; }
 
-/* The viewport clips the panned/zoomed image; it never scrolls itself —
-   panning is done with a real translate() so drag always works. */
+/* The viewport clips the panned/zoomed chart; it never scrolls itself —
+   panning is done with a real translate() on the live canvas so drag
+   always works and hover/tooltips keep responding while zoomed. */
 .chart-zoom-image-wrap {
     flex: 1 1 auto;
     position: relative;
@@ -795,20 +796,19 @@ canvas.zoomable-chart { cursor: zoom-in; }
     touch-action: none;
 }
 
-#chartZoomImage {
+.chart-zoom-image-wrap canvas {
     position: absolute;
-    top: 50%;
-    left: 50%;
-    max-width: none;
-    width: auto;
-    height: auto;
-    max-height: 100%;
+    inset: 0;
+    width: 100%;
+    height: 100%;
     transform-origin: center center;
     cursor: grab;
-    user-select: none;
-    -webkit-user-drag: none;
     will-change: transform;
 }
 
-#chartZoomImage.snap { transition: transform 0.15s ease; }
-#chartZoomImage.dragging { cursor: grabbing; transition: none !important; }
+.chart-zoom-image-wrap canvas.snap { transition: transform 0.15s ease; }
+.chart-zoom-image-wrap canvas.dragging { cursor: grabbing; transition: none !important; }
+
+@media (max-width: 640px) {
+    .chart-zoom-hint { display: none; }
+}
