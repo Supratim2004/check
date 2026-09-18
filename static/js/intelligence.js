@@ -44,6 +44,8 @@ Chart.defaults.font.family = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Rob
 document.addEventListener('DOMContentLoaded', async () => {
     await loadAllData();
     setupEventListeners();
+    setupChartControls();
+    setupChartZoomModal();
 });
 
 async function loadAllData() {
@@ -593,4 +595,162 @@ function exportCurrentCourt() {
     a.download = `${district.replace(/[^a-z0-9]/gi, '_')}_${currentCourt.replace(/[^a-z0-9]/gi, '_')}_docket_data.json`;
     a.click();
     URL.revokeObjectURL(url);
+}
+
+/* ================================================================
+   Per-chart "Download PDF" / "Download Excel" + click-to-zoom.
+   Registered once at load; buttons look up the live chart instance
+   from `charts` at click time, so this works across re-renders.
+   ================================================================ */
+
+const CHART_REGISTRY = [
+    { canvasId: 'distributionChart', key: 'dist', title: 'Filings by Case Type' },
+    { canvasId: 'hearingsChart', key: 'hearings', title: 'Hearings per Disposed Case' },
+    { canvasId: 'trendChart', key: 'trend', title: 'Monthly Filing Volume' },
+    { canvasId: 'arrivalRateChart', key: 'arrivalRate', title: 'Monthly Arrival Rate' },
+    { canvasId: 'meanFilingsChart', key: 'meanFilings', title: 'Mean Monthly Filings by Case Type' },
+    { canvasId: 'disposalChart', key: 'disposal', title: 'Time to Disposal (Working Days)' },
+    { canvasId: 'gapChart', key: 'gap', title: 'Filing-to-First-Listing Gap' },
+    { canvasId: 'monthlyHearingRateTrendChart', key: 'monthlyHearingRateTrend', title: 'Monthly Hearing Rate - Time Series' },
+    { canvasId: 'monthlyHearingRateChart', key: 'monthlyHearingRate', title: 'Monthly Rate Summary' },
+    { canvasId: 'casewiseHearingRateChart', key: 'casewiseHearingRate', title: 'Case-wise Rate Summary' },
+];
+
+function sanitizeFilename(name) {
+    return String(name).replace(/[^a-z0-9]+/gi, '_').replace(/^_+|_+$/g, '').toLowerCase() || 'chart';
+}
+
+function setupChartControls() {
+    CHART_REGISTRY.forEach(({ canvasId, key, title }) => {
+        const canvas = document.getElementById(canvasId);
+        if (!canvas || !canvas.parentElement) return;
+
+        canvas.classList.add('zoomable-chart');
+        canvas.title = 'Click to zoom';
+        canvas.addEventListener('click', () => openChartZoom(key, title));
+
+        const toolbar = document.createElement('div');
+        toolbar.className = 'chart-toolbar';
+
+        const pdfBtn = document.createElement('button');
+        pdfBtn.type = 'button';
+        pdfBtn.className = 'chart-tool-btn';
+        pdfBtn.textContent = 'Download PDF';
+        pdfBtn.addEventListener('click', () => exportChartPDF(key, title));
+
+        const xlsxBtn = document.createElement('button');
+        xlsxBtn.type = 'button';
+        xlsxBtn.className = 'chart-tool-btn';
+        xlsxBtn.textContent = 'Download Excel';
+        xlsxBtn.addEventListener('click', () => exportChartExcel(key, title));
+
+        toolbar.append(pdfBtn, xlsxBtn);
+        canvas.parentElement.insertBefore(toolbar, canvas);
+    });
+}
+
+function exportChartPDF(key, title) {
+    const chart = charts[key];
+    if (!chart || !window.jspdf) {
+        alert('This chart is not ready yet. Please wait for it to finish loading and try again.');
+        return;
+    }
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ orientation: 'landscape' });
+    const image = chart.toBase64Image('image/png', 1);
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const margin = 14;
+
+    doc.setFontSize(14);
+    doc.text(title, margin, 15);
+
+    const ratio = chart.canvas.height / chart.canvas.width;
+    const imgWidth = pageWidth - margin * 2;
+    const imgHeight = imgWidth * ratio;
+    doc.addImage(image, 'PNG', margin, 22, imgWidth, imgHeight);
+    doc.save(`${sanitizeFilename(title)}.pdf`);
+}
+
+function exportChartExcel(key, title) {
+    const chart = charts[key];
+    if (!chart || !window.XLSX) {
+        alert('This chart is not ready yet. Please wait for it to finish loading and try again.');
+        return;
+    }
+    const labels = chart.data.labels || [];
+    const datasets = chart.data.datasets || [];
+    const header = ['Case Type / Month', ...datasets.map((ds, i) => ds.label || `Series ${i + 1}`)];
+    const rows = labels.map((label, i) => [label, ...datasets.map(ds => ds.data[i] ?? '')]);
+
+    const worksheet = XLSX.utils.aoa_to_sheet([header, ...rows]);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Chart Data');
+    XLSX.writeFile(workbook, `${sanitizeFilename(title)}.xlsx`);
+}
+
+let zoomScale = 1;
+const ZOOM_MIN = 0.5;
+const ZOOM_MAX = 4;
+const ZOOM_STEP = 0.25;
+
+function applyZoomScale() {
+    const img = document.getElementById('chartZoomImage');
+    if (img) img.style.transform = `scale(${zoomScale})`;
+}
+
+function openChartZoom(key, title) {
+    const chart = charts[key];
+    if (!chart) return;
+    const modal = document.getElementById('chartZoomModal');
+    const img = document.getElementById('chartZoomImage');
+    img.src = chart.toBase64Image('image/png', 1);
+    zoomScale = 1;
+    applyZoomScale();
+    document.getElementById('chartZoomTitle').textContent = title;
+    modal.classList.add('open');
+    modal.setAttribute('aria-hidden', 'false');
+}
+
+function closeChartZoom() {
+    const modal = document.getElementById('chartZoomModal');
+    modal.classList.remove('open');
+    modal.setAttribute('aria-hidden', 'true');
+}
+
+function setupChartZoomModal() {
+    const modal = document.getElementById('chartZoomModal');
+    if (!modal) return;
+
+    document.getElementById('chartZoomIn').addEventListener('click', () => {
+        zoomScale = Math.min(ZOOM_MAX, zoomScale + ZOOM_STEP);
+        applyZoomScale();
+    });
+    document.getElementById('chartZoomOut').addEventListener('click', () => {
+        zoomScale = Math.max(ZOOM_MIN, zoomScale - ZOOM_STEP);
+        applyZoomScale();
+    });
+    document.getElementById('chartZoomReset').addEventListener('click', () => {
+        zoomScale = 1;
+        applyZoomScale();
+    });
+    document.getElementById('chartZoomClose').addEventListener('click', closeChartZoom);
+
+    // Click outside the panel closes the modal.
+    modal.addEventListener('click', e => {
+        if (e.target === modal) closeChartZoom();
+    });
+
+    // Scroll to zoom while hovering the image.
+    document.getElementById('chartZoomImageWrap').addEventListener('wheel', e => {
+        if (!modal.classList.contains('open')) return;
+        e.preventDefault();
+        zoomScale = e.deltaY < 0
+            ? Math.min(ZOOM_MAX, zoomScale + ZOOM_STEP)
+            : Math.max(ZOOM_MIN, zoomScale - ZOOM_STEP);
+        applyZoomScale();
+    }, { passive: false });
+
+    document.addEventListener('keydown', e => {
+        if (e.key === 'Escape' && modal.classList.contains('open')) closeChartZoom();
+    });
 }
