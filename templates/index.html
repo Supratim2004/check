@@ -7,6 +7,9 @@
     <title>{{ meta.district }} Courts Intelligence Platform - Docket Analytics</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/intelligence.css') }}">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Chart export libraries: PDF (jsPDF) and Excel (SheetJS) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 
 <body>
@@ -413,6 +416,24 @@
                 <p id="footnoteText"></p>
                 <p>Proof of concept &bull; figures sourced from district Excel workbooks &bull; working-day-adjusted rates per <code>W(m)</code></p>
             </footer>
+        </div>
+    </div>
+
+    <!-- Chart zoom modal: opened by clicking any chart canvas -->
+    <div id="chartZoomModal" class="chart-zoom-modal" aria-hidden="true">
+        <div class="chart-zoom-content">
+            <div class="chart-zoom-bar">
+                <span class="chart-zoom-title" id="chartZoomTitle"></span>
+                <div class="chart-zoom-actions">
+                    <button type="button" id="chartZoomOut" class="chart-tool-btn" aria-label="Zoom out">&minus;</button>
+                    <button type="button" id="chartZoomReset" class="chart-tool-btn" aria-label="Reset zoom">Reset</button>
+                    <button type="button" id="chartZoomIn" class="chart-tool-btn" aria-label="Zoom in">&plus;</button>
+                    <button type="button" id="chartZoomClose" class="chart-tool-btn chart-tool-btn-close" aria-label="Close">&times;</button>
+                </div>
+            </div>
+            <div class="chart-zoom-image-wrap" id="chartZoomImageWrap">
+                <img id="chartZoomImage" alt="Enlarged chart" draggable="false" />
+            </div>
         </div>
     </div>
 
