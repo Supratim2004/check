@@ -728,6 +728,12 @@ let zoomState = { scale: 1, x: 0, y: 0 };
 let dragState = null; // { pointerId, startClientX, startClientY, startX, startY }
 let zoomChartInstance = null;
 
+// Tracks every pointer currently down inside the zoom viewport, so we can
+// tell a one-finger drag (pan) apart from a two-finger pinch (zoom) — both
+// arrive as the same 'pointer' events on touch devices.
+const activeZoomPointers = new Map();
+let pinchState = null; // { startDistance, startScale }
+
 function currentZoomCanvas() {
     return document.querySelector('#chartZoomImageWrap canvas');
 }
@@ -773,6 +779,9 @@ function openChartZoom(key, title) {
     zoomChartInstance = new Chart(canvas, cloneChartConfig(chart));
 
     zoomState = { scale: 1, x: 0, y: 0 };
+    dragState = null;
+    activeZoomPointers.clear();
+    pinchState = null;
     applyZoomTransform();
 
     document.getElementById('chartZoomTitle').textContent = title;
@@ -785,6 +794,8 @@ function closeChartZoom() {
     modal.classList.remove('open');
     modal.setAttribute('aria-hidden', 'true');
     dragState = null;
+    activeZoomPointers.clear();
+    pinchState = null;
     if (zoomChartInstance) { zoomChartInstance.destroy(); zoomChartInstance = null; }
     document.getElementById('chartZoomImageWrap').innerHTML = '';
 }
@@ -821,40 +832,87 @@ function setupChartZoomModal() {
         setZoomScale(zoomState.scale + (e.deltaY < 0 ? ZOOM_STEP : -ZOOM_STEP));
     }, { passive: false });
 
-    // Click-and-drag panning, delegated on the wrap so it keeps working even
-    // though the canvas inside is replaced each time the modal opens.
-    // Pointer capture keeps the drag going even if the cursor moves outside
-    // the canvas while the button is held.
+    // Click-and-drag panning (mouse or one finger) plus two-finger pinch to
+    // zoom (touch). Delegated on the wrap so it keeps working even though
+    // the canvas inside is replaced each time the modal opens. Pointer
+    // capture keeps events routed here even if a finger slides outside the
+    // canvas while down.
     wrap.addEventListener('pointerdown', e => {
-        if (zoomState.scale <= ZOOM_MIN) return; // nothing to pan at 1x
-        const canvas = currentZoomCanvas();
-        if (!canvas) return;
         wrap.setPointerCapture(e.pointerId);
-        canvas.classList.add('dragging');
-        dragState = {
-            pointerId: e.pointerId,
-            startClientX: e.clientX,
-            startClientY: e.clientY,
-            startX: zoomState.x,
-            startY: zoomState.y,
-        };
+        activeZoomPointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+        const canvas = currentZoomCanvas();
+
+        if (activeZoomPointers.size === 2) {
+            // A second finger landed: switch from panning to pinch-zooming.
+            dragState = null;
+            if (canvas) canvas.classList.remove('dragging');
+            const [p1, p2] = Array.from(activeZoomPointers.values());
+            pinchState = {
+                startDistance: Math.hypot(p2.x - p1.x, p2.y - p1.y) || 1,
+                startScale: zoomState.scale,
+            };
+            return;
+        }
+
+        if (activeZoomPointers.size === 1 && zoomState.scale > ZOOM_MIN) {
+            if (!canvas) return;
+            canvas.classList.add('dragging');
+            dragState = {
+                pointerId: e.pointerId,
+                startClientX: e.clientX,
+                startClientY: e.clientY,
+                startX: zoomState.x,
+                startY: zoomState.y,
+            };
+        }
     });
 
     wrap.addEventListener('pointermove', e => {
+        if (!activeZoomPointers.has(e.pointerId)) return;
+        activeZoomPointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+        if (pinchState && activeZoomPointers.size === 2) {
+            const [p1, p2] = Array.from(activeZoomPointers.values());
+            const distance = Math.hypot(p2.x - p1.x, p2.y - p1.y) || 1;
+            setZoomScale(pinchState.startScale * (distance / pinchState.startDistance));
+            return;
+        }
+
         if (!dragState || dragState.pointerId !== e.pointerId) return;
         zoomState.x = dragState.startX + (e.clientX - dragState.startClientX);
         zoomState.y = dragState.startY + (e.clientY - dragState.startClientY);
         applyZoomTransform();
     });
 
-    const endDrag = e => {
-        if (!dragState || (e && dragState.pointerId !== e.pointerId)) return;
-        const canvas = currentZoomCanvas();
-        if (canvas) canvas.classList.remove('dragging');
-        dragState = null;
+    const endZoomPointer = e => {
+        if (!e) return;
+        activeZoomPointers.delete(e.pointerId);
+
+        if (activeZoomPointers.size < 2) pinchState = null;
+
+        if (dragState && dragState.pointerId === e.pointerId) {
+            const canvas = currentZoomCanvas();
+            if (canvas) canvas.classList.remove('dragging');
+            dragState = null;
+        }
+
+        // One finger lifted off a pinch, one remains: resume panning with it
+        // instead of leaving the gesture stuck mid-pinch.
+        if (activeZoomPointers.size === 1 && zoomState.scale > ZOOM_MIN) {
+            const [remainingId, point] = Array.from(activeZoomPointers.entries())[0];
+            const canvas = currentZoomCanvas();
+            if (canvas) canvas.classList.add('dragging');
+            dragState = {
+                pointerId: remainingId,
+                startClientX: point.x,
+                startClientY: point.y,
+                startX: zoomState.x,
+                startY: zoomState.y,
+            };
+        }
     };
-    wrap.addEventListener('pointerup', endDrag);
-    wrap.addEventListener('pointercancel', endDrag);
+    wrap.addEventListener('pointerup', endZoomPointer);
+    wrap.addEventListener('pointercancel', endZoomPointer);
 
     document.addEventListener('keydown', e => {
         if (e.key === 'Escape' && modal.classList.contains('open')) closeChartZoom();
