@@ -419,11 +419,13 @@
         </div>
     </div>
 
-    <!-- Chart zoom modal: opened by clicking any chart canvas -->
+    <!-- Chart zoom modal: hosts a LIVE cloned chart (not a static image), so
+         hover/tooltips keep working and nothing gets "captured" mid-hover. -->
     <div id="chartZoomModal" class="chart-zoom-modal" aria-hidden="true">
         <div class="chart-zoom-content">
             <div class="chart-zoom-bar">
                 <span class="chart-zoom-title" id="chartZoomTitle"></span>
+                <span class="chart-zoom-hint">Hover for values &bull; drag to pan when zoomed &bull; scroll to zoom</span>
                 <div class="chart-zoom-actions">
                     <button type="button" id="chartZoomOut" class="chart-tool-btn" aria-label="Zoom out">&minus;</button>
                     <button type="button" id="chartZoomReset" class="chart-tool-btn" aria-label="Reset zoom">Reset</button>
@@ -431,9 +433,7 @@
                     <button type="button" id="chartZoomClose" class="chart-tool-btn chart-tool-btn-close" aria-label="Close">&times;</button>
                 </div>
             </div>
-            <div class="chart-zoom-image-wrap" id="chartZoomImageWrap">
-                <img id="chartZoomImage" alt="Enlarged chart" draggable="false" />
-            </div>
+            <div class="chart-zoom-image-wrap" id="chartZoomImageWrap"></div>
         </div>
     </div>
 
