@@ -239,6 +239,7 @@ body {
     border-radius: 1rem;
     padding: 1.5rem;
     margin-bottom: 2rem;
+    overflow: hidden;
 }
 
 .chart-title {
@@ -603,100 +604,6 @@ canvas { max-width: 100%; }
     .hearing-rate-timeseries .rate-trend-plot { flex: none; height: 390px; min-height: 0; }
 }
 
-/* ===== Chart download (PDF/Excel) toolbar + click-to-zoom ===== */
-.chart-toolbar {
-    display: flex;
-    justify-content: flex-end;
-    gap: 0.5rem;
-    margin-bottom: 0.75rem;
-}
-
-.chart-tool-btn {
-    background: var(--field-bg, #fffdf8);
-    color: var(--accent, #7a4b2a);
-    border: 1px solid var(--panel-border, #cdbda6);
-    border-radius: 0.4rem;
-    padding: 0.35rem 0.75rem;
-    font-size: 0.75rem;
-    font-weight: 600;
-    cursor: pointer;
-    transition: background 0.2s, color 0.2s;
-    white-space: nowrap;
-}
-
-.chart-tool-btn:hover {
-    background: var(--accent, #7a4b2a);
-    color: #fff;
-}
-
-canvas.zoomable-chart {
-    cursor: zoom-in;
-}
-
-/* Zoom modal */
-.chart-zoom-modal {
-    display: none;
-    position: fixed;
-    inset: 0;
-    background: rgba(20, 14, 8, 0.72);
-    z-index: 10000;
-    align-items: center;
-    justify-content: center;
-    padding: 2rem;
-}
-
-.chart-zoom-modal.open { display: flex; }
-
-.chart-zoom-content {
-    background: var(--panel-bg, #f7f2e9);
-    border-radius: 0.75rem;
-    border: 1px solid var(--panel-border, #cdbda6);
-    width: min(1100px, 95vw);
-    max-height: 90vh;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-}
-
-.chart-zoom-bar {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 1rem;
-    padding: 0.85rem 1.25rem;
-    border-bottom: 1px solid var(--panel-border, #cdbda6);
-}
-
-.chart-zoom-title {
-    font-weight: 700;
-    color: var(--accent-deep, #6b2f2f);
-}
-
-.chart-zoom-actions { display: flex; gap: 0.5rem; }
-
-.chart-tool-btn-close { font-size: 1rem; line-height: 1; padding: 0.35rem 0.65rem; }
-
-.chart-zoom-image-wrap {
-    flex: 1;
-    overflow: auto;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 1.5rem;
-    background: var(--field-bg, #fffdf8);
-    cursor: grab;
-}
-
-.chart-zoom-image-wrap:active { cursor: grabbing; }
-
-#chartZoomImage {
-    max-width: 100%;
-    height: auto;
-    transition: transform 0.15s ease;
-    transform-origin: center center;
-    user-select: none;
-}
-
 /* Filters and summary cards share one continuous left column. */
 .dashboard-sidebar {
     grid-column: 1; grid-row: 2 / span 3; min-width: 0;
@@ -809,3 +716,99 @@ body {
 }
 .pagination-btn:hover:not(:disabled) { background: #4e2d22; }
 .dashboard-footer { color: var(--accent); }
+
+/* ===== Chart download (PDF/Excel) + click-to-zoom =====
+   The toolbar is inserted OUTSIDE the fixed-height chart wrappers
+   (.overview-chart / .trend-plot / .rate-plot), so it never steals
+   space from the canvas and never changes a chart's proportions. */
+.chart-toolbar {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
+}
+
+.chart-tool-btn {
+    background: var(--field-bg);
+    color: var(--accent);
+    border: 1px solid var(--panel-border);
+    border-radius: 0.4rem;
+    padding: 0.35rem 0.75rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s, color 0.2s;
+    white-space: nowrap;
+}
+
+.chart-tool-btn:hover { background: var(--accent); color: #fff; }
+
+canvas.zoomable-chart { cursor: zoom-in; }
+
+/* Zoom modal */
+.chart-zoom-modal {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(20, 14, 8, 0.72);
+    z-index: 10000;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+}
+
+.chart-zoom-modal.open { display: flex; }
+
+.chart-zoom-content {
+    background: var(--panel-bg);
+    border-radius: 0.75rem;
+    border: 1px solid var(--panel-border);
+    width: min(1100px, 95vw);
+    height: min(720px, 90vh);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.chart-zoom-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.85rem 1.25rem;
+    border-bottom: 1px solid var(--panel-border);
+    flex: 0 0 auto;
+}
+
+.chart-zoom-title { font-weight: 700; color: var(--accent-deep); }
+.chart-zoom-hint { font-size: 0.75rem; color: var(--muted-ink); margin-right: auto; margin-left: 1rem; }
+.chart-zoom-actions { display: flex; gap: 0.5rem; }
+.chart-tool-btn-close { font-size: 1rem; line-height: 1; padding: 0.35rem 0.65rem; }
+
+/* The viewport clips the panned/zoomed image; it never scrolls itself —
+   panning is done with a real translate() so drag always works. */
+.chart-zoom-image-wrap {
+    flex: 1 1 auto;
+    position: relative;
+    overflow: hidden;
+    background: var(--field-bg);
+    touch-action: none;
+}
+
+#chartZoomImage {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    max-width: none;
+    width: auto;
+    height: auto;
+    max-height: 100%;
+    transform-origin: center center;
+    cursor: grab;
+    user-select: none;
+    -webkit-user-drag: none;
+    will-change: transform;
+}
+
+#chartZoomImage.snap { transition: transform 0.15s ease; }
+#chartZoomImage.dragging { cursor: grabbing; transition: none !important; }
