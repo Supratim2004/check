@@ -812,3 +812,38 @@ canvas.zoomable-chart { cursor: zoom-in; }
 @media (max-width: 640px) {
     .chart-zoom-hint { display: none; }
 }
+
+/* ===== Phone-friendly refinements ===== */
+@media (max-width: 480px) {
+    /* Header stacks and the export button becomes a full-width tap target. */
+    .dashboard-header { flex-direction: column; align-items: stretch; }
+    .btn-export { width: 100%; justify-content: center; padding: 0.85rem 1.25rem; }
+    .header-title { font-size: 1.6rem; }
+    .header-icon svg { width: 36px; height: 36px; }
+
+    /* Filter fields stack instead of squeezing into two narrow columns. */
+    .filters-grid { grid-template-columns: 1fr; }
+
+    /* Larger touch targets for the download buttons and tabs. */
+    .chart-toolbar { flex-wrap: wrap; }
+    .chart-tool-btn { padding: 0.6rem 0.95rem; font-size: 0.8rem; }
+    .tab-btn { padding: 0.7rem 1rem; }
+}
+
+@media (max-width: 640px) {
+    /* Charts don't need to be as tall on a phone screen. */
+    .overview-chart { height: 240px; }
+    .trend-plot { height: 260px; }
+    .rate-plot { height: 300px; }
+    .trend-summary .trend-plot { min-height: 260px; }
+    .hearing-rate-timeseries .rate-trend-plot { min-height: 300px; }
+
+    /* The zoom view takes the full screen — more room to pinch/pan, and
+       avoids fighting the mobile browser's own UI chrome around a modal. */
+    .chart-zoom-modal { padding: 0; }
+    .chart-zoom-content { width: 100vw; height: 100dvh; max-height: 100dvh; border-radius: 0; border: none; }
+    .chart-zoom-bar { padding: 0.65rem 0.85rem; }
+    .chart-zoom-title { font-size: 0.9rem; }
+    .chart-zoom-actions { gap: 0.35rem; }
+    .chart-zoom-actions .chart-tool-btn { padding: 0.55rem 0.8rem; font-size: 0.95rem; min-width: 2.4rem; }
+}
