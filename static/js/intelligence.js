@@ -600,7 +600,7 @@ function exportCurrentCourt() {
 /* ================================================================
    Per-chart "Download PDF" / "Download Excel" + click-to-zoom.
    Registered once at load; buttons look up the live chart instance
-   from `charts` at click time, so this works across re-renders.
+   from `charts` at click time, so this keeps working across re-renders.
    ================================================================ */
 
 const CHART_REGISTRY = [
@@ -615,6 +615,12 @@ const CHART_REGISTRY = [
     { canvasId: 'monthlyHearingRateChart', key: 'monthlyHearingRate', title: 'Monthly Rate Summary' },
     { canvasId: 'casewiseHearingRateChart', key: 'casewiseHearingRate', title: 'Case-wise Rate Summary' },
 ];
+
+// Classes that mark a fixed-height chart wrapper. The toolbar must be
+// inserted BEFORE that wrapper (as its own sibling), never inside it —
+// inserting inside would eat into the wrapper's fixed height and squeeze
+// the canvas, which is what changed the chart proportions before.
+const FIXED_HEIGHT_WRAPPER_CLASSES = ['overview-chart', 'trend-plot', 'rate-plot'];
 
 function sanitizeFilename(name) {
     return String(name).replace(/[^a-z0-9]+/gi, '_').replace(/^_+|_+$/g, '').toLowerCase() || 'chart';
@@ -645,8 +651,25 @@ function setupChartControls() {
         xlsxBtn.addEventListener('click', () => exportChartExcel(key, title));
 
         toolbar.append(pdfBtn, xlsxBtn);
-        canvas.parentElement.insertBefore(toolbar, canvas);
+
+        // Find the element to insert the toolbar in front of: the fixed-height
+        // wrapper if there is one, otherwise the canvas itself.
+        let anchor = canvas;
+        const wrapper = canvas.parentElement;
+        if (FIXED_HEIGHT_WRAPPER_CLASSES.some(cls => wrapper.classList.contains(cls))) {
+            anchor = wrapper;
+        }
+        anchor.parentElement.insertBefore(toolbar, anchor);
     });
+}
+
+// Take a clean snapshot of a chart: clears any hover/tooltip state first so a
+// tooltip bubble that happened to be showing never gets baked into the image.
+function captureChartImage(chart) {
+    chart.setActiveElements([]);
+    if (chart.tooltip) chart.tooltip.setActiveElements([], { x: 0, y: 0 });
+    chart.update('none');
+    return chart.toBase64Image('image/png', 1);
 }
 
 function exportChartPDF(key, title) {
@@ -657,7 +680,7 @@ function exportChartPDF(key, title) {
     }
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF({ orientation: 'landscape' });
-    const image = chart.toBase64Image('image/png', 1);
+    const image = captureChartImage(chart);
     const pageWidth = doc.internal.pageSize.getWidth();
     const margin = 14;
 
@@ -688,14 +711,25 @@ function exportChartExcel(key, title) {
     XLSX.writeFile(workbook, `${sanitizeFilename(title)}.xlsx`);
 }
 
-let zoomScale = 1;
-const ZOOM_MIN = 0.5;
-const ZOOM_MAX = 4;
+/* ---- Zoom modal: real click-and-drag panning + button/wheel zoom ---- */
+
+const ZOOM_MIN = 1;
+const ZOOM_MAX = 5;
 const ZOOM_STEP = 0.25;
 
-function applyZoomScale() {
+let zoomState = { scale: 1, x: 0, y: 0 };
+let dragState = null; // { pointerId, startClientX, startClientY, startX, startY }
+
+function applyZoomTransform() {
     const img = document.getElementById('chartZoomImage');
-    if (img) img.style.transform = `scale(${zoomScale})`;
+    if (!img) return;
+    img.style.transform = `translate(-50%, -50%) translate(${zoomState.x}px, ${zoomState.y}px) scale(${zoomState.scale})`;
+}
+
+function setZoomScale(nextScale) {
+    zoomState.scale = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, nextScale));
+    if (zoomState.scale === ZOOM_MIN) { zoomState.x = 0; zoomState.y = 0; }
+    applyZoomTransform();
 }
 
 function openChartZoom(key, title) {
@@ -703,9 +737,10 @@ function openChartZoom(key, title) {
     if (!chart) return;
     const modal = document.getElementById('chartZoomModal');
     const img = document.getElementById('chartZoomImage');
-    img.src = chart.toBase64Image('image/png', 1);
-    zoomScale = 1;
-    applyZoomScale();
+    img.src = captureChartImage(chart);
+    zoomState = { scale: 1, x: 0, y: 0 };
+    img.classList.remove('dragging');
+    applyZoomTransform();
     document.getElementById('chartZoomTitle').textContent = title;
     modal.classList.add('open');
     modal.setAttribute('aria-hidden', 'false');
@@ -715,40 +750,70 @@ function closeChartZoom() {
     const modal = document.getElementById('chartZoomModal');
     modal.classList.remove('open');
     modal.setAttribute('aria-hidden', 'true');
+    dragState = null;
+}
+
+function withSnap(fn) {
+    // Briefly enables a CSS transition so button clicks feel smooth, then
+    // removes it again so dragging afterwards stays immediate (no lag).
+    const img = document.getElementById('chartZoomImage');
+    img.classList.add('snap');
+    fn();
+    window.setTimeout(() => img.classList.remove('snap'), 160);
 }
 
 function setupChartZoomModal() {
     const modal = document.getElementById('chartZoomModal');
     if (!modal) return;
+    const wrap = document.getElementById('chartZoomImageWrap');
+    const img = document.getElementById('chartZoomImage');
 
-    document.getElementById('chartZoomIn').addEventListener('click', () => {
-        zoomScale = Math.min(ZOOM_MAX, zoomScale + ZOOM_STEP);
-        applyZoomScale();
-    });
-    document.getElementById('chartZoomOut').addEventListener('click', () => {
-        zoomScale = Math.max(ZOOM_MIN, zoomScale - ZOOM_STEP);
-        applyZoomScale();
-    });
-    document.getElementById('chartZoomReset').addEventListener('click', () => {
-        zoomScale = 1;
-        applyZoomScale();
-    });
+    document.getElementById('chartZoomIn').addEventListener('click', () => withSnap(() => setZoomScale(zoomState.scale + ZOOM_STEP)));
+    document.getElementById('chartZoomOut').addEventListener('click', () => withSnap(() => setZoomScale(zoomState.scale - ZOOM_STEP)));
+    document.getElementById('chartZoomReset').addEventListener('click', () => withSnap(() => { zoomState.x = 0; zoomState.y = 0; setZoomScale(1); }));
     document.getElementById('chartZoomClose').addEventListener('click', closeChartZoom);
 
-    // Click outside the panel closes the modal.
+    // Click on the dark backdrop (not the panel) closes the modal.
     modal.addEventListener('click', e => {
         if (e.target === modal) closeChartZoom();
     });
 
-    // Scroll to zoom while hovering the image.
-    document.getElementById('chartZoomImageWrap').addEventListener('wheel', e => {
+    // Scroll/trackpad to zoom, anchored at the current center.
+    wrap.addEventListener('wheel', e => {
         if (!modal.classList.contains('open')) return;
         e.preventDefault();
-        zoomScale = e.deltaY < 0
-            ? Math.min(ZOOM_MAX, zoomScale + ZOOM_STEP)
-            : Math.max(ZOOM_MIN, zoomScale - ZOOM_STEP);
-        applyZoomScale();
+        setZoomScale(zoomState.scale + (e.deltaY < 0 ? ZOOM_STEP : -ZOOM_STEP));
     }, { passive: false });
+
+    // Click-and-drag panning. Pointer capture keeps the drag going even if
+    // the cursor moves outside the image while the button is held.
+    img.addEventListener('pointerdown', e => {
+        if (zoomState.scale <= ZOOM_MIN) return; // nothing to pan at 1x
+        img.setPointerCapture(e.pointerId);
+        img.classList.add('dragging');
+        dragState = {
+            pointerId: e.pointerId,
+            startClientX: e.clientX,
+            startClientY: e.clientY,
+            startX: zoomState.x,
+            startY: zoomState.y,
+        };
+    });
+
+    img.addEventListener('pointermove', e => {
+        if (!dragState || dragState.pointerId !== e.pointerId) return;
+        zoomState.x = dragState.startX + (e.clientX - dragState.startClientX);
+        zoomState.y = dragState.startY + (e.clientY - dragState.startClientY);
+        applyZoomTransform();
+    });
+
+    const endDrag = e => {
+        if (!dragState || (e && dragState.pointerId !== e.pointerId)) return;
+        img.classList.remove('dragging');
+        dragState = null;
+    };
+    img.addEventListener('pointerup', endDrag);
+    img.addEventListener('pointercancel', endDrag);
 
     document.addEventListener('keydown', e => {
         if (e.key === 'Escape' && modal.classList.contains('open')) closeChartZoom();
