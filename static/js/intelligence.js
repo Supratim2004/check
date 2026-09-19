@@ -179,6 +179,7 @@ async function selectCourt(code) {
     populateHearingRateTypes(currentCourtData);
     renderHearingRateCharts(currentCourtData);
     renderRegisterTable();
+    renderComplexityChart(currentCourtData);
 
     document.getElementById('footnoteText').textContent =
         `Gap and hearing-count measures use this court's listing-reliable cut-off (${currentCourtData.listing_cutoff || 'not provided'}); ` +
@@ -614,6 +615,7 @@ const CHART_REGISTRY = [
     { canvasId: 'monthlyHearingRateTrendChart', key: 'monthlyHearingRateTrend', title: 'Monthly Hearing Rate - Time Series' },
     { canvasId: 'monthlyHearingRateChart', key: 'monthlyHearingRate', title: 'Monthly Rate Summary' },
     { canvasId: 'casewiseHearingRateChart', key: 'casewiseHearingRate', title: 'Case-wise Rate Summary' },
+    { canvasId: 'complexityChart', key: 'complexity', title: 'Case Complexity, Service Rate, Throughput and Disposal Time' },
 ];
 
 // Classes that mark a fixed-height chart wrapper. The toolbar must be
@@ -700,10 +702,22 @@ function exportChartExcel(key, title) {
         alert('This chart is not ready yet. Please wait for it to finish loading and try again.');
         return;
     }
-    const labels = chart.data.labels || [];
-    const datasets = chart.data.datasets || [];
-    const header = ['Case Type / Month', ...datasets.map((ds, i) => ds.label || `Series ${i + 1}`)];
-    const rows = labels.map((label, i) => [label, ...datasets.map(ds => ds.data[i] ?? '')]);
+    let header, rows;
+    if (chart.config.type === 'bubble') {
+        // Bubble points carry their own case-type/throughput/disposal fields
+        // (see buildComplexityPoints), rather than the label+series shape
+        // every other chart on this page uses.
+        const points = (chart.data.datasets.find(ds => ds.type !== 'line') || {}).data || [];
+        header = ['Case Type', 'Side', 'Complexity (median hearings/case)',
+            'Service rate (median hearings/case-month)', 'Throughput (hearings/working day)',
+            'Median time to disposal (working days)'];
+        rows = points.map(p => [p.label, p.side ?? '', p.x, p.y, p.throughput ?? '', p.disposalMedian ?? '']);
+    } else {
+        const labels = chart.data.labels || [];
+        const datasets = chart.data.datasets || [];
+        header = ['Case Type / Month', ...datasets.map((ds, i) => ds.label || `Series ${i + 1}`)];
+        rows = labels.map((label, i) => [label, ...datasets.map(ds => ds.data[i] ?? '')]);
+    }
 
     const worksheet = XLSX.utils.aoa_to_sheet([header, ...rows]);
     const workbook = XLSX.utils.book_new();
@@ -753,9 +767,11 @@ function setZoomScale(nextScale) {
 // Deep-clone a chart's data/options as plain JSON. Our datasets only ever
 // contain strings/numbers/arrays (colors as hex strings, plain numbers), so
 // a JSON round-trip is a safe, complete deep clone with no shared references
-// back to the original chart.
+// back to the original chart. Function-valued options (tooltip callbacks,
+// custom plugins) don't survive JSON cloning, so the bubble chart's label
+// plugin and tooltip formatter are re-attached afterwards by reference.
 function cloneChartConfig(chart) {
-    return {
+    const config = {
         type: chart.config.type,
         data: JSON.parse(JSON.stringify(chart.config.data)),
         options: {
@@ -764,6 +780,16 @@ function cloneChartConfig(chart) {
             maintainAspectRatio: false,
         },
     };
+    if (chart.config.type === 'bubble') {
+        config.plugins = [bubbleCaseLabelPlugin];
+        config.options.plugins = config.options.plugins || {};
+        config.options.plugins.legend = { display: false };
+        config.options.plugins.tooltip = {
+            filter: item => item.dataset.type !== 'line',
+            callbacks: { label: bubbleTooltipLabel },
+        };
+    }
+    return config;
 }
 
 function openChartZoom(key, title) {
@@ -917,4 +943,285 @@ function setupChartZoomModal() {
     document.addEventListener('keydown', e => {
         if (e.key === 'Escape' && modal.classList.contains('open')) closeChartZoom();
     });
+}
+
+/* ================================================================
+   Case Complexity tab: a bubble chart built from this court's own
+   reported statistics (no server changes needed — every value below
+   already comes back from /api/court/<code>):
+     X = median hearings per disposed case          (Hearings_X)
+     Y = median hearings per case-month              (Hearing_rate_casewise, Mo median)
+     size (H) = median hearings per working day       (Hearing_rate_monthly)
+     colour = median time to disposal, working days   (Disposal_workdays)
+   Case types are plotted only when all four figures are available.
+   ================================================================ */
+
+const COMPLEXITY_COLOR_STOPS = [
+    [0.00, [37, 99, 235]],   // blue   — shortest disposal time
+    [0.25, [6, 182, 212]],   // cyan
+    [0.50, [34, 197, 94]],   // green
+    [0.75, [234, 179, 8]],   // amber
+    [1.00, [220, 38, 38]],   // red    — longest disposal time
+];
+
+function colorForDisposal(value, min, max) {
+    if (!Number.isFinite(value) || max <= min) return 'rgba(148, 163, 184, 0.85)';
+    const t = Math.min(1, Math.max(0, (value - min) / (max - min)));
+    let lo = COMPLEXITY_COLOR_STOPS[0], hi = COMPLEXITY_COLOR_STOPS[COMPLEXITY_COLOR_STOPS.length - 1];
+    for (let i = 0; i < COMPLEXITY_COLOR_STOPS.length - 1; i++) {
+        if (t >= COMPLEXITY_COLOR_STOPS[i][0] && t <= COMPLEXITY_COLOR_STOPS[i + 1][0]) {
+            lo = COMPLEXITY_COLOR_STOPS[i]; hi = COMPLEXITY_COLOR_STOPS[i + 1]; break;
+        }
+    }
+    const span = hi[0] - lo[0] || 1;
+    const localT = (t - lo[0]) / span;
+    const rgb = lo[1].map((c, i) => Math.round(c + (hi[1][i] - c) * localT));
+    return `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, 0.85)`;
+}
+
+// Build one plottable point per case type present in all four source
+// tables, with a pixel radius derived from throughput via a sqrt scale
+// (so bubble AREA — not radius — is proportional to throughput).
+function buildComplexityPoints(courtData) {
+    const byType = (rows, xKey) => {
+        const map = new Map();
+        (rows || []).forEach(row => map.set(row.case_type, row));
+        return map;
+    };
+    const hearingsX = byType(courtData.hearings_per_case);
+    const caseRate = byType(courtData.hearing_rate_casewise);
+    const monthlyRate = byType(courtData.hearing_rate_monthly);
+    const disposal = byType(courtData.disposal);
+
+    const raw = [];
+    hearingsX.forEach((hx, caseType) => {
+        const rate = caseRate.get(caseType);
+        const monthly = monthlyRate.get(caseType);
+        const disp = disposal.get(caseType);
+        if (!rate || !monthly || !disp) return;
+
+        const x = hx.median ?? hx.mean;
+        const y = rate.mo_median ?? rate.mo_mean;
+        const h = monthly.median ?? monthly.mean;
+        const d = disp.median ?? disp.mean;
+        if (![x, y, h, d].every(Number.isFinite)) return;
+
+        raw.push({ caseType, side: hx.side, x, y, throughput: h, disposalMedian: d });
+    });
+
+    const hValues = raw.map(p => p.throughput);
+    const hMin = Math.min(...hValues), hMax = Math.max(...hValues);
+    const MIN_R = 7, MAX_R = 34;
+    const radiusFor = h => {
+        if (!Number.isFinite(h) || hMax <= hMin) return (MIN_R + MAX_R) / 2;
+        const t = (h - hMin) / (hMax - hMin);
+        return MIN_R + (MAX_R - MIN_R) * Math.sqrt(t);
+    };
+
+    const dValues = raw.map(p => p.disposalMedian);
+    const dMin = Math.min(...dValues), dMax = Math.max(...dValues);
+
+    return raw.map(p => ({
+        x: p.x, y: p.y, r: radiusFor(p.throughput),
+        label: p.caseType, side: p.side,
+        throughput: p.throughput, disposalMedian: p.disposalMedian,
+        backgroundColor: colorForDisposal(p.disposalMedian, dMin, dMax),
+    })).sort((a, b) => b.r - a.r); // draw the largest bubbles first, small ones on top
+}
+
+// Pick ~4 "months to disposal" reference lines (Y = X / T) that are
+// actually visible within the plotted data range, instead of hard-coding
+// values that might sit far outside this court's real numbers.
+function pickComplexityReferenceLines(maxX, maxY) {
+    if (!(maxX > 0) || !(maxY > 0)) return [];
+    const candidates = [0.5, 1, 1.5, 2, 3, 4, 6, 9, 12, 18, 24, 36, 48, 60, 84, 120];
+    const visible = candidates.filter(t => {
+        const yAtMaxX = maxX / t;
+        return yAtMaxX > maxY * 0.04 && yAtMaxX < maxY * 1.3;
+    });
+    if (visible.length <= 4) return visible;
+    const picks = [];
+    const stepIdx = (visible.length - 1) / 3;
+    for (let i = 0; i < 4; i++) picks.push(visible[Math.round(i * stepIdx)]);
+    return [...new Set(picks)];
+}
+
+function formatMonthsLabel(t) {
+    const rounded = t >= 10 ? Math.round(t) : Math.round(t * 10) / 10;
+    return `${rounded} mo`;
+}
+
+// Draws each case-type name beside its bubble, and each guide line's
+// "N mo" label near its far end — the same look as the reference example,
+// without needing an extra datalabels plugin.
+const bubbleCaseLabelPlugin = {
+    id: 'bubbleCaseLabels',
+    afterDatasetsDraw(chart) {
+        const { ctx } = chart;
+        chart.data.datasets.forEach((dataset, dsIndex) => {
+            const meta = chart.getDatasetMeta(dsIndex);
+            if (meta.hidden) return;
+            ctx.save();
+            ctx.font = dataset.type === 'line' ? '600 11px -apple-system, sans-serif' : '600 12px -apple-system, sans-serif';
+            ctx.fillStyle = dataset.type === 'line' ? 'rgba(107, 79, 58, 0.75)' : CHART_TEXT;
+            ctx.textBaseline = 'middle';
+            if (dataset.type === 'line' && dataset.guideLabel) {
+                const point = meta.data[meta.data.length - 1];
+                if (point) {
+                    ctx.textAlign = 'right';
+                    ctx.fillText(dataset.guideLabel, point.x - 4, point.y - 8);
+                }
+            } else if (dataset.type !== 'line') {
+                meta.data.forEach((point, index) => {
+                    const raw = dataset.data[index];
+                    if (!raw || !raw.label) return;
+                    ctx.textAlign = 'left';
+                    ctx.fillText(raw.label, point.x + (raw.r || 10) + 6, point.y);
+                });
+            }
+            ctx.restore();
+        });
+    },
+};
+
+function bubbleTooltipLabel(context) {
+    const raw = context.raw;
+    if (!raw || !raw.label) return context.formattedValue;
+    return [
+        raw.label,
+        `Complexity: ${raw.x} median hearings/case`,
+        `Service rate: ${raw.y} median hearings/case-month`,
+        `Throughput: ${raw.throughput} hearings/working day`,
+        `Median disposal: ${raw.disposalMedian} working days`,
+    ];
+}
+
+function renderComplexityChart(courtData) {
+    const subtitle = document.getElementById('complexitySubtitle');
+    const points = buildComplexityPoints(courtData);
+    destroy('complexity');
+
+    if (!points.length) {
+        subtitle.textContent = 'Not enough matching hearings, rate and disposal data to plot this court yet.';
+        document.getElementById('complexityTakeawaysList').innerHTML = '';
+        document.getElementById('complexityColorLabels').innerHTML = '';
+        document.getElementById('complexityBubbleLegend').innerHTML = '';
+        return;
+    }
+
+    subtitle.textContent =
+        'Each bubble is a case type at this court. Position shows median complexity and service rate. ' +
+        'Bubble size shows throughput. Colour shows median time to disposal.';
+
+    const maxX = Math.max(...points.map(p => p.x)) * 1.15 || 1;
+    const maxY = Math.max(...points.map(p => p.y)) * 1.15 || 1;
+    const referenceMonths = pickComplexityReferenceLines(maxX, maxY);
+
+    const guideDatasets = referenceMonths.map(t => ({
+        type: 'line',
+        data: [{ x: 0, y: 0 }, { x: maxX, y: maxX / t }],
+        borderColor: 'rgba(107, 79, 58, 0.45)',
+        borderDash: [6, 4],
+        borderWidth: 1.4,
+        pointRadius: 0,
+        pointHoverRadius: 0,
+        fill: false,
+        tension: 0,
+        order: 10,
+        guideLabel: `\u2248 ${formatMonthsLabel(t)}`,
+    }));
+
+    charts.complexity = new Chart(document.getElementById('complexityChart'), {
+        type: 'bubble',
+        data: {
+            datasets: [
+                {
+                    label: 'Case types',
+                    data: points,
+                    backgroundColor: points.map(p => p.backgroundColor),
+                    borderColor: 'rgba(41, 37, 33, 0.35)',
+                    borderWidth: 1,
+                    order: 1,
+                },
+                ...guideDatasets,
+            ],
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: { mode: 'nearest', intersect: true },
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    filter: item => item.dataset.type !== 'line',
+                    callbacks: { label: bubbleTooltipLabel },
+                },
+            },
+            scales: {
+                x: {
+                    min: 0, max: maxX,
+                    title: { display: true, text: 'Median hearings per disposed case (Complexity, X)' },
+                    ticks: { color: CHART_MUTED }, grid: { color: CHART_GRID },
+                },
+                y: {
+                    min: 0, max: maxY,
+                    title: { display: true, text: 'Median hearings per case-month (Service rate, S)' },
+                    ticks: { color: CHART_MUTED }, grid: { color: CHART_GRID },
+                },
+            },
+        },
+        plugins: [bubbleCaseLabelPlugin],
+    });
+
+    renderComplexityLegends(points);
+    renderComplexityTakeaways(points);
+}
+
+function renderComplexityLegends(points) {
+    const dValues = points.map(p => p.disposalMedian);
+    const dMin = Math.min(...dValues), dMax = Math.max(...dValues);
+    const colorLabels = document.getElementById('complexityColorLabels');
+    colorLabels.innerHTML = [dMin, dMin + (dMax - dMin) * 0.5, dMax]
+        .map(v => `<span>${fmt(Math.round(v))} wd</span>`).join('');
+
+    const hValues = points.map(p => p.throughput);
+    const hMin = Math.min(...hValues), hMax = Math.max(...hValues);
+    const legend = document.getElementById('complexityBubbleLegend');
+    const samples = [hMin, hMin + (hMax - hMin) / 3, hMin + (hMax - hMin) * 2 / 3, hMax];
+    const MIN_R = 7, MAX_R = 34;
+    legend.innerHTML = samples.map(h => {
+        const t = hMax > hMin ? (h - hMin) / (hMax - hMin) : 0.5;
+        const r = MIN_R + (MAX_R - MIN_R) * Math.sqrt(t);
+        return `
+            <div class="bubble-sample">
+                <div class="bubble-sample-circle" style="width:${r * 2}px;height:${r * 2}px;"></div>
+                <div class="bubble-sample-label">${h.toFixed(h < 10 ? 1 : 0)}</div>
+            </div>
+        `;
+    }).join('');
+}
+
+function renderComplexityTakeaways(points) {
+    const list = document.getElementById('complexityTakeawaysList');
+    const byX = [...points].sort((a, b) => a.x - b.x);
+    const simplest = byX[0];
+    const mostComplex = byX[byX.length - 1];
+    const busiestThroughput = [...points].sort((a, b) => b.throughput - a.throughput)[0];
+    const slowestDisposal = [...points].sort((a, b) => b.disposalMedian - a.disposalMedian)[0];
+
+    const bullets = [
+        `${esc(simplest.label)} is the least complex case type here, needing a median of ` +
+        `${simplest.x} hearing(s) per case, with a median disposal of ${fmt(simplest.disposalMedian)} working days.`,
+        `${esc(mostComplex.label)} needs the most hearings per case (median ${mostComplex.x}), ` +
+        (mostComplex.label === slowestDisposal.label
+            ? `and also has the longest median disposal time at ${fmt(mostComplex.disposalMedian)} working days.`
+            : `taking a median of ${fmt(mostComplex.disposalMedian)} working days to disposal.`),
+        `${esc(busiestThroughput.label)} draws the largest share of daily hearing capacity, at ` +
+        `${busiestThroughput.throughput.toFixed(busiestThroughput.throughput < 10 ? 2 : 0)} hearings scheduled per working day.`,
+        `${esc(slowestDisposal.label)} has the longest median time to disposal at ` +
+        `${fmt(slowestDisposal.disposalMedian)} working days.`,
+        `The dashed guide lines mark reference disposal times (months \u2248 complexity \u00f7 service rate); ` +
+        `a bubble above a line is clearing faster than that reference, one below is clearing slower.`,
+    ];
+    list.innerHTML = bullets.map(b => `<li>${b}</li>`).join('');
 }
