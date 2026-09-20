@@ -187,13 +187,6 @@
                     </svg>
                     Hearing Rates
                 </button>
-                <button class="tab-btn" data-tab="register">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                        <path d="M9 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6H9z" stroke-width="2" />
-                        <path d="M9 2v6h6" stroke-width="2" />
-                    </svg>
-                    Case Register
-                </button>
                 <button class="tab-btn" data-tab="complexity">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                         <circle cx="7" cy="16" r="2.5" stroke-width="2" />
@@ -202,6 +195,14 @@
                     </svg>
                     Case Complexity
                 </button>
+                <button class="tab-btn" data-tab="register">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        <path d="M9 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6H9z" stroke-width="2" />
+                        <path d="M9 2v6h6" stroke-width="2" />
+                    </svg>
+                    Case Register
+                </button>
+                
             </nav>
 
             <!-- Tab Content -->
@@ -428,22 +429,34 @@
                             Case Types: Complexity, Service Rate, Throughput &amp; Time to Disposal
                         </h3>
                         <p class="chart-subtitle" id="complexitySubtitle">
-                            Each bubble is a case type at this court. Position shows median complexity and service
-                            rate. Bubble size shows throughput. Colour shows median time to disposal.
+                            Each bubble is a case type at this court. Position shows mean complexity and service
+                            rate. Bubble size shows throughput. Colour shows mean time to disposal.
                         </p>
 
-                        <div class="complexity-layout">
-                            <div class="complexity-axis-hint">
-                                <span class="hint-up">&uarr; Hearings happen more quickly</span>
-                                <span class="hint-axis-label">Service rate<br>(hearings / case-month)</span>
-                                <span class="hint-down">&darr; Hearings happen more slowly</span>
-                            </div>
+                        <fieldset class="trend-case-fieldset">
+                            <legend>Case types · select any number</legend>
+                            <div id="complexityCaseTypes" class="trend-case-options"></div>
+                            <button type="button" id="complexityReset" class="chart-tool-btn">Reset to default</button>
+                        </fieldset>
+                        <p id="complexitySelectionStatus" class="chart-subtitle" role="status"></p>
 
-                            <div class="complexity-plot"><canvas id="complexityChart"></canvas></div>
+                        <div class="complexity-layout">
+                            <div class="complexity-chart-region">
+                                <div class="complexity-axis-hint" aria-label="Higher values mean more frequent hearings">
+                                    <span class="hint-up">More frequent hearings &uarr;</span>
+                                    <span class="hint-rule" aria-hidden="true"></span>
+                                    <span class="hint-down">&darr; Less frequent hearings</span>
+                                </div>
+                                <div class="complexity-plot"><canvas id="complexityChart"></canvas></div>
+                                <div class="complexity-axis-footer">
+                                    <span>&larr; Less complex cases</span>
+                                    <span>More complex cases &rarr;</span>
+                                </div>
+                            </div>
 
                             <div class="complexity-side-panels">
                                 <div class="side-panel">
-                                    <h4>Median time to disposal (working days)</h4>
+                                    <h4>Mean time to disposal (working days)</h4>
                                     <div class="color-scale-bar" id="complexityColorBar"></div>
                                     <div class="color-scale-labels" id="complexityColorLabels"></div>
                                     <p class="side-panel-note">Cooler colours = shorter disposal time; warmer colours = longer disposal time.</p>
@@ -451,23 +464,18 @@
                                 <div class="side-panel">
                                     <h4>Throughput H (hearings / working day)</h4>
                                     <div class="bubble-size-legend" id="complexityBubbleLegend"></div>
-                                    <p class="side-panel-note">Larger bubble = higher throughput.</p>
+                                    <p class="side-panel-note">Bubble area is proportional to mean throughput. Zero throughput has zero area.</p>
                                 </div>
                                 <div class="side-panel">
                                     <h4>How to read this plot</h4>
                                     <ol class="how-to-read-list">
-                                        <li><strong>Position:</strong> each bubble sits at its median hearings per case (complexity, X) and median hearings per case-month (service rate, Y).</li>
-                                        <li><strong>Bubble size:</strong> larger bubbles mean more hearings are scheduled per working day for that case type (throughput).</li>
-                                        <li><strong>Colour:</strong> warmer colours mean a longer median time to disposal.</li>
-                                        <li><strong>Guide lines:</strong> dashed lines mark reference disposal times, where months &asymp; complexity &divide; service rate.</li>
+                                        <li><strong>Position:</strong> each bubble sits at its mean hearings per case (complexity, X) and mean hearings per case-month (service rate, S).</li>
+                                        <li><strong>Bubble size:</strong> larger bubbles mean more hearings are held per working day for that case type (throughput).</li>
+                                        <li><strong>Colour:</strong> warmer colours mean a longer mean time to disposal.</li>
+                                        <li><strong>Guide lines:</strong> dashed lines show implied duration: mean complexity &divide; mean service rate. These are reference ratios, not observed disposal times.</li>
                                     </ol>
                                 </div>
                             </div>
-                        </div>
-
-                        <div class="complexity-axis-footer">
-                            <span>&larr; Fewer hearings needed per case</span>
-                            <span>More hearings needed per case &rarr;</span>
                         </div>
 
                         <div class="complexity-takeaways">
