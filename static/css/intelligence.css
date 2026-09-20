@@ -542,18 +542,20 @@ canvas { max-width: 100%; }
     .trend-controls { grid-template-columns: minmax(0, 1fr); }
 }
 
-/* Stack the time series beside a comparison chart spanning both rows. */
+/* Filing trends: three charts plus calculated observations. */
 #trends > .chart-card:nth-child(2) { grid-column: 1; grid-row: 2; }
-#trends > .chart-card:nth-child(3) { grid-column: 1; grid-row: 3; }
+#trends > .chart-card:nth-child(3) { grid-column: 2; grid-row: 2; }
 #trends > .trend-summary {
-    grid-column: 2; grid-row: 2 / span 2;
+    grid-column: 1; grid-row: 3;
     display: flex; flex-direction: column;
 }
-.trend-summary .trend-plot { flex: 1; min-height: 340px; height: auto; }
+.trend-summary .trend-plot { height: 340px; }
+#trends > .trend-observations { grid-column: 2; grid-row: 3; }
 @media (max-width: 1000px) {
     #trends > .chart-card:nth-child(2),
     #trends > .chart-card:nth-child(3),
-    #trends > .trend-summary { grid-column: 1; grid-row: auto; }
+    #trends > .trend-summary,
+    #trends > .trend-observations { grid-column: 1; grid-row: auto; }
     .trend-summary .trend-plot { flex: none; height: 340px; }
 }
 
@@ -577,22 +579,23 @@ canvas { max-width: 100%; }
     #timeliness > #outliersSection { grid-column: 1; grid-row: auto; }
 }
 
-/* Keep the two hearing-rate summaries together for direct comparison. */
+/* Hearing rates: three charts and observations in a balanced 2 x 2 grid. */
 #hearingRates.active {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 1rem;
 }
 #hearingRates > .chart-card { min-width: 0; margin-bottom: 0; }
-.rate-plot { position: relative; height: 390px; min-width: 0; }
+.rate-plot { position: relative; height: 300px; min-width: 0; }
 #hearingRates > .hearing-rate-controls { grid-column: 1 / -1; }
 #hearingRates > .hearing-rate-timeseries {
-    grid-column: 1; grid-row: 2 / span 2;
+    grid-column: 1; grid-row: 2;
     display: flex; flex-direction: column;
 }
 #hearingRates > .hearing-rate-summary { grid-column: 2; grid-row: 2; }
-#hearingRates > .hearing-rate-casewise { grid-column: 2; grid-row: 3; }
-.hearing-rate-timeseries .rate-trend-plot { flex: 1; height: auto; min-height: 820px; }
+#hearingRates > .hearing-rate-casewise { grid-column: 1; grid-row: 3; }
+#hearingRates > .hearing-rate-observations { grid-column: 2; grid-row: 3; }
+.hearing-rate-timeseries .rate-trend-plot { height: 300px; min-height: 0; }
 .hearing-rate-controls { display: block; }
 .hearing-rate-controls #hearingRateSelectionStatus { margin: 0.75rem 0 0; }
 @media (max-width: 1000px) {
@@ -600,8 +603,9 @@ canvas { max-width: 100%; }
     #hearingRates > .hearing-rate-controls,
     #hearingRates > .hearing-rate-timeseries,
     #hearingRates > .hearing-rate-summary,
-    #hearingRates > .hearing-rate-casewise { grid-column: 1; grid-row: auto; }
-    .hearing-rate-timeseries .rate-trend-plot { flex: none; height: 390px; min-height: 0; }
+    #hearingRates > .hearing-rate-casewise,
+    #hearingRates > .hearing-rate-observations { grid-column: 1; grid-row: auto; }
+    .hearing-rate-timeseries .rate-trend-plot { flex: none; height: 300px; min-height: 0; }
 }
 
 /* Filters and summary cards share one continuous left column. */
@@ -998,7 +1002,8 @@ canvas.zoomable-chart { cursor: zoom-in; }
 }
 
 .complexity-takeaways {
-    margin-top: 1.25rem;
+    grid-column: 1 / -1;
+    margin-top: 0.5rem;
     background: rgba(47, 122, 61, 0.08);
     border: 1px solid rgba(47, 122, 61, 0.35);
     border-radius: 0.6rem;
@@ -1034,4 +1039,16 @@ canvas.zoomable-chart { cursor: zoom-in; }
     .complexity-plot { height: 320px; }
     .complexity-side-panels { flex-direction: column; }
     .complexity-axis-footer { padding: 0; font-size: 0.68rem; }
+}
+
+/* Keep the three hearing-percentile bars per case legible on small screens. */
+@media (max-width: 640px) {
+    .overview-chart-hearings { height: 360px; }
+}
+
+.hearing-observations-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 0.8rem; }
+.hearing-observations-list li { padding: 0.9rem 1rem; background: var(--field-bg); border-left: 3px solid var(--accent); border-radius: 0.4rem; color: var(--muted-ink); font-size: 0.9rem; line-height: 1.5; }
+.hearing-observations-list strong { display: block; color: var(--accent-deep); margin-bottom: 0.25rem; }
+@media (max-width: 640px) {
+    .hearing-rate-timeseries .rate-trend-plot { height: 300px; }
 }

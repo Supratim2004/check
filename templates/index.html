@@ -229,8 +229,8 @@
                                 </svg>
                                 Hearings per Disposed Case
                             </h3>
-                            <p class="chart-subtitle">Median count, top case types</p>
-                            <div class="overview-chart"><canvas id="hearingsChart"></canvas></div>
+                            <p class="chart-subtitle">Bar ends at the 90th percentile; markers show the median and 75th percentile.</p>
+                            <div class="overview-chart overview-chart-hearings"><canvas id="hearingsChart"></canvas></div>
                         </div>
 
                         <div class="chart-card overview-ranking">
@@ -287,6 +287,11 @@
                         </h3>
                         <p class="chart-subtitle" id="meanFilingsCaption">Selected case types · full-period workbook averages</p>
                         <div class="trend-plot"><canvas id="meanFilingsChart"></canvas></div>
+                    </div>
+                    <div class="chart-card trend-observations">
+                        <h3 class="chart-title">Observations</h3>
+                        <p id="filingObservationsCaption" class="chart-subtitle"></p>
+                        <ul id="filingObservations" class="hearing-observations-list" aria-live="polite"></ul>
                     </div>
                 </div>
 
@@ -357,7 +362,7 @@
                             </svg>
                             Monthly Rate Summary
                         </h3>
-                        <p class="chart-subtitle">Reported mean vs. median hearings per working day</p>
+                        <p class="chart-subtitle">Hearings per working day: bar ends at the 90th percentile; markers show the median and 75th.</p>
                         <div class="rate-plot"><canvas id="monthlyHearingRateChart"></canvas></div>
                     </div>
                     <div class="chart-card hearing-rate-casewise">
@@ -368,8 +373,13 @@
                             </svg>
                             Case-wise Rate Summary
                         </h3>
-                        <p class="chart-subtitle">Reported mean vs. median hearings per elapsed working day</p>
+                        <p class="chart-subtitle">Hearings per case-month: bar ends at the 90th percentile; markers show the median and 75th.</p>
                         <div class="rate-plot"><canvas id="casewiseHearingRateChart"></canvas></div>
+                    </div>
+                    <div class="chart-card hearing-rate-observations">
+                        <h3 class="chart-title">Observations</h3>
+                        <p class="chart-subtitle">All case types with available data at this court; time-series peaks use available monthly records</p>
+                        <ul id="hearingRateObservations" class="hearing-observations-list" aria-live="polite"></ul>
                     </div>
                 </div>
 
@@ -452,6 +462,10 @@
                                     <span>&larr; Less complex cases</span>
                                     <span>More complex cases &rarr;</span>
                                 </div>
+                                <div class="complexity-takeaways">
+                                    <h4>&check; Key takeaways</h4>
+                                    <ul id="complexityTakeawaysList"></ul>
+                                </div>
                             </div>
 
                             <div class="complexity-side-panels">
@@ -478,10 +492,6 @@
                             </div>
                         </div>
 
-                        <div class="complexity-takeaways">
-                            <h4>&check; Key takeaways</h4>
-                            <ul id="complexityTakeawaysList"></ul>
-                        </div>
                     </div>
                 </div>
 

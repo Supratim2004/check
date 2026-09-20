@@ -256,29 +256,90 @@ function renderDistributionChart(courtData) {
 }
 
 function renderHearingsChart(courtData) {
-    const rows = courtData.hearings_per_case.slice(0, 6);
-    destroy('hearings');
-    charts.hearings = new Chart(document.getElementById('hearingsChart'), {
+    renderHearingPercentiles('hearings', 'hearingsChart', courtData.hearings_per_case.slice(0, 6), 'hearings', 'Number of hearings');
+}
+
+function renderHearingPercentiles(chartKey, canvasId, rows, unit, axisTitle) {
+    const series = [
+        { key: 'median', label: 'Median (50th)', color: '#2563eb' },
+        { key: 'p75', label: '75th percentile', color: '#2f6f6d' },
+        { key: 'p90', label: '90th percentile', color: '#b45309' },
+    ];
+    const percentileMarkers = {
+        id: 'hearingPercentileMarkers',
+        afterDatasetsDraw(chart) {
+            const { ctx, scales } = chart;
+            const bars = chart.getDatasetMeta(0).data;
+            ctx.save();
+            rows.forEach((row, index) => {
+                const bar = bars[index];
+                if (!bar) return;
+                series.slice(0, 2).forEach(({ key, color }, markerIndex) => {
+                    if (!Number.isFinite(row[key])) return;
+                    const x = scales.x.getPixelForValue(row[key]);
+                    // Different marker heights keep coincident percentiles visible.
+                    const halfHeight = bar.height / 2 + (markerIndex === 0 ? 5 : 1);
+                    ctx.strokeStyle = color;
+                    ctx.lineWidth = markerIndex === 0 ? 3 : 5;
+                    ctx.beginPath();
+                    ctx.moveTo(x, bar.y - halfHeight);
+                    ctx.lineTo(x, bar.y + halfHeight);
+                    ctx.stroke();
+                });
+            });
+            ctx.restore();
+        },
+    };
+    destroy(chartKey);
+    charts[chartKey] = new Chart(document.getElementById(canvasId), {
         type: 'bar',
         data: {
             labels: rows.map(r => r.case_type),
             datasets: [{
-                label: 'Median hearings',
-                data: rows.map(r => r.median),
-                backgroundColor: 'rgba(96,165,250,0.7)',
-                borderRadius: 4,
-            }]
+                label: '90th percentile',
+                data: rows.map(r => Number.isFinite(r.p90) ? r.p90 : null),
+                backgroundColor: 'rgba(180,83,9,0.35)',
+                borderColor: '#b45309',
+                borderWidth: 1,
+                borderRadius: 3,
+                barPercentage: 0.55,
+                maxBarThickness: 18,
+                percentileRows: rows,
+                percentileUnit: unit,
+            }],
         },
         options: {
-            indexAxis: 'y',
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: { legend: { display: false } },
+            indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+            interaction: { mode: 'index', axis: 'y', intersect: false },
+            plugins: {
+                legend: {
+                    display: true, position: 'bottom', onClick: () => {},
+                    labels: {
+                        boxWidth: 12, font: { size: 11 },
+                        generateLabels: () => series.map(({ label, color }) => ({
+                            text: label, fillStyle: color, strokeStyle: color, hidden: false,
+                        })),
+                    },
+                },
+                tooltip: { callbacks: {
+                    label: context => series.map(({ key, label }) => {
+                        const value = rows[context.dataIndex][key];
+                        return `${label}: ${Number.isFinite(value) ? value + ' ' + unit : 'unavailable'}`;
+                    }),
+                } },
+            },
             scales: {
-                x: { ticks: { color: CHART_TEXT }, grid: { color: CHART_GRID } },
-                y: { ticks: { color: CHART_TEXT }, grid: { display: false } }
-            }
-        }
+                x: {
+                    beginAtZero: true,
+                    suggestedMax: Math.max(1, ...rows.flatMap(row => series.map(({ key }) =>
+                        Number.isFinite(row[key]) ? row[key] : 0))),
+                    title: { display: true, text: axisTitle },
+                    ticks: { color: CHART_TEXT }, grid: { color: CHART_GRID },
+                },
+                y: { ticks: { color: CHART_TEXT, autoSkip: false }, grid: { display: false } },
+            },
+        },
+        plugins: [percentileMarkers],
     });
 }
 
@@ -357,6 +418,63 @@ function renderTrendChart() {
         smooth ? 'Filings / month (12-month MA)' : 'Filings', smooth);
     renderFilingSeries('arrivalRate', 'arrivalRateChart', currentCourtData.arrival_rate_series,
         smooth ? 'Filings / working day (12-month MA)' : 'Filings / working day', smooth);
+    renderFilingObservations(currentCourtData, smooth);
+}
+
+function filingObservations(courtData, smooth) {
+    const observations = [];
+    const labels = courtData.month_labels || [];
+    const format = value => Number(value.toFixed(2)).toLocaleString('en-IN');
+    const rows = (courtData.arrivals || []).filter(r => Number.isFinite(r.mean));
+    if (rows.length) {
+        const highest = Math.max(...rows.map(r => r.mean));
+        const names = rows.filter(r => r.mean === highest).map(r => r.case_type).join(', ');
+        observations.push({ title: 'Highest reported mean monthly filings',
+            text: `${names}: ${format(highest)} filings per month, using the full-period workbook average.` });
+    }
+    const valuesFor = (source, name) => {
+        const values = labels.map((_, i) => source?.[name]?.[i] ?? null);
+        return smooth ? movingAverage12(labels, values) : values;
+    };
+    const seriesTypes = Object.keys(courtData.arrival_series || {});
+    const series = seriesTypes.map(name => valuesFor(courtData.arrival_series, name));
+    const totals = labels.map((month, index) => {
+        const values = series.map(v => v[index]);
+        return { month, value: values.length && values.every(Number.isFinite) ? values.reduce((a, b) => a + b, 0) : null };
+    });
+    const valid = totals.filter(p => Number.isFinite(p.value));
+    const basis = smooth ? 'combined filings per month (12-month moving average)' : 'combined filings';
+    if (valid.length) {
+        const peak = Math.max(...valid.map(p => p.value));
+        const ties = valid.filter(p => p.value === peak);
+        observations.push({ title: 'Peak filing volume in available monthly data',
+            text: `${format(peak)} ${basis} in ${ties[0].month} across ${seriesTypes.length} case types with monthly records.` + (ties.length > 1 ? ` This peak occurs in ${ties.length} months.` : '') });
+    }
+    const ratePoints = Object.keys(courtData.arrival_rate_series || {}).flatMap(name => valuesFor(courtData.arrival_rate_series, name)
+        .map((value, index) => ({ name, value, month: labels[index] })).filter(p => Number.isFinite(p.value)));
+    if (ratePoints.length) {
+        const peak = Math.max(...ratePoints.map(p => p.value));
+        const ties = ratePoints.filter(p => p.value === peak);
+        observations.push({ title: 'Highest arrival rate in available monthly data',
+            text: `${ties[0].name}: ${format(peak)} filings per working day in ${ties[0].month}${smooth ? ' (12-month moving average)' : ''}.` +
+                (ties.length > 1 ? ` Shared by ${ties.length} case-type/month observations.` : '') });
+    }
+    const latest = totals[totals.length - 1];
+    if (latest && Number.isFinite(latest.value)) {
+        observations.push({ title: 'Latest month in the data',
+            text: `${latest.month}: ${format(latest.value)} ${basis} across ${seriesTypes.length} case types with monthly records.` });
+    }
+    return observations;
+}
+
+function renderFilingObservations(courtData, smooth) {
+    document.getElementById('filingObservationsCaption').textContent = smooth
+        ? 'All case types with available data · time-series observations use the 12-month moving average'
+        : 'All case types with available data · time-series observations use actual monthly values';
+    const observations = filingObservations(courtData, smooth);
+    document.getElementById('filingObservations').innerHTML = observations.length
+        ? observations.map(item => `<li><strong>${esc(item.title)}</strong>${esc(item.text)}</li>`).join('')
+        : '<li>Not enough data for observations at this court.</li>';
 }
 
 function renderFilingSeries(key, canvasId, series, unit, smooth) {
@@ -508,10 +626,52 @@ function renderHearingRateCharts(courtData) {
     const selected = new Set(selectedHearingRateTypes);
     renderRateChart('monthlyHearingRate', 'monthlyHearingRateChart',
         (courtData.hearing_rate_monthly || []).filter(row => selected.has(row.case_type)),
-        'Mean hearings / working day', 'Median hearings / working day', 'mean', 'median');
+        'hearings / working day', 'median', 'p75', 'p90');
     renderRateChart('casewiseHearingRate', 'casewiseHearingRateChart',
         (courtData.hearing_rate_casewise || []).filter(row => selected.has(row.case_type)),
-        'Mean hearings / elapsed working day', 'Median hearings / elapsed working day', 'wd_mean', 'wd_median');
+        'hearings / case-month', 'mo_median', 'mo_p75', 'mo_p90');
+    renderHearingRateObservations(courtData);
+}
+
+function hearingRateObservations(courtData) {
+    const monthly = (courtData.hearing_rate_monthly || []);
+    const casewise = (courtData.hearing_rate_casewise || []);
+    const observations = [];
+    const describeHighest = (rows, key, title, unit) => {
+        const valid = rows.filter(r => Number.isFinite(r[key]));
+        if (!valid.length) return;
+        const value = Math.max(...valid.map(r => r[key]));
+        const names = valid.filter(r => r[key] === value).map(r => r.case_type).join(', ');
+        observations.push({ title, text: `${names}: ${value} ${unit}.` });
+    };
+    describeHighest(monthly, 'median', 'Highest median monthly throughput', 'hearings per working day');
+    describeHighest(casewise, 'mo_median', 'Highest median hearing frequency per case', 'hearings per case-month');
+    const spreads = casewise.filter(r => Number.isFinite(r.mo_p90) && Number.isFinite(r.mo_median) && r.mo_p90 >= r.mo_median)
+        .map(r => ({ ...r, spread: Number((r.mo_p90 - r.mo_median).toFixed(6)) }));
+    describeHighest(spreads, 'spread', 'Largest gap between median and 90th percentile', 'hearings per case-month (90th percentile minus median)');
+    const peaks = [];
+    Object.keys(courtData.hearing_rate_series || {}).forEach(name => {
+        (courtData.hearing_rate_series?.[name] || []).forEach((value, index) => {
+            const month = courtData.month_labels?.[index];
+            if (Number.isFinite(value) && month) peaks.push({ name, value, month });
+        });
+    });
+    if (peaks.length) {
+        const highest = Math.max(...peaks.map(p => p.value));
+        const ties = peaks.filter(p => p.value === highest);
+        const first = ties[0];
+        observations.push({ title: 'Peak in available monthly time series',
+            text: `${first.name}: ${highest} hearings per working day in ${first.month}.` +
+                (ties.length > 1 ? ` This peak is shared by ${ties.length} case-type/month observations.` : '') });
+    }
+    return observations;
+}
+
+function renderHearingRateObservations(courtData) {
+    const observations = hearingRateObservations(courtData);
+    document.getElementById('hearingRateObservations').innerHTML = observations.length
+        ? observations.map(item => `<li><strong>${esc(item.title)}</strong>${esc(item.text)}</li>`).join('')
+        : '<li>No hearing-rate observations are available at this court.</li>';
 }
 
 function renderHearingRateTrend(courtData) {
@@ -540,27 +700,12 @@ function renderHearingRateTrend(courtData) {
     });
 }
 
-function renderRateChart(key, canvasId, rows, meanLabel, medianLabel, meanKey, medianKey) {
-    const displayRows = (rows || []).filter(row => Number.isFinite(row[meanKey]) || Number.isFinite(row[medianKey]));
-    destroy(key);
-    charts[key] = new Chart(document.getElementById(canvasId), {
-        type: 'bar',
-        data: {
-            labels: displayRows.map(row => row.case_type),
-            datasets: [
-                { label: meanLabel, data: displayRows.map(row => row[meanKey]), backgroundColor: 'rgba(96,165,250,0.78)', borderRadius: 4 },
-                { label: medianLabel, data: displayRows.map(row => row[medianKey]), backgroundColor: 'rgba(244,114,182,0.68)', borderRadius: 4 },
-            ],
-        },
-        options: {
-            indexAxis: 'y', responsive: true, maintainAspectRatio: false,
-            plugins: { legend: { position: 'bottom', labels: { color: CHART_TEXT } } },
-            scales: {
-                x: { beginAtZero: true, ticks: { color: CHART_MUTED }, grid: { color: CHART_GRID } },
-                y: { ticks: { color: CHART_TEXT }, grid: { display: false } },
-            },
-        },
-    });
+function renderRateChart(key, canvasId, rows, unit, medianKey, p75Key, p90Key) {
+    const displayRows = (rows || []).map(row => ({
+        case_type: row.case_type,
+        median: row[medianKey], p75: row[p75Key], p90: row[p90Key],
+    }));
+    renderHearingPercentiles(key, canvasId, displayRows, unit, unit);
 }
 
 function renderRegisterTable() {
@@ -721,7 +866,12 @@ function exportChartExcel(key, title) {
         return;
     }
     let header, rows;
-    if (chart.config.type === 'bubble') {
+    if (chart.data.datasets[0]?.percentileRows) {
+        const unit = chart.data.datasets[0].percentileUnit;
+        header = ['Case Type', `Median (50th) (${unit})`, `75th percentile (${unit})`, `90th percentile (${unit})`];
+        rows = chart.data.datasets[0].percentileRows.map(row =>
+            [row.case_type, row.median ?? '', row.p75 ?? '', row.p90 ?? '']);
+    } else if (chart.config.type === 'bubble') {
         // Bubble points carry their own case-type/throughput/disposal fields
         // (see buildComplexityPoints), rather than the label+series shape
         // every other chart on this page uses.
@@ -798,6 +948,14 @@ function cloneChartConfig(chart) {
             maintainAspectRatio: false,
         },
     };
+    if (chart.config.data.datasets[0]?.percentileRows) {
+        config.plugins = chart.config.plugins;
+        config.options.plugins = {
+            ...config.options.plugins,
+            legend: chart.config.options.plugins.legend,
+            tooltip: chart.config.options.plugins.tooltip,
+        };
+    }
     if (chart.config.type === 'bubble') {
         config.plugins = [bubbleCaseLabelPlugin];
         config.options.plugins = config.options.plugins || {};
