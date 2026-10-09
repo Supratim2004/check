@@ -1,0 +1,2 @@
+import {esc,fmt,text} from '../visuals.js';
+export function render(d){text('outlierCount',`${d.rows.length} case type(s) flagged — 90th-pct listing gap over 100 working days`);document.getElementById('outliersList').innerHTML=d.rows.map(r=>`<div class="anomaly-card"><div class="anomaly-date">${esc(r.case_type)}</div><div class="anomaly-value">${fmt(r.p90)} working days</div><div class="anomaly-score">90th pct — median ${fmt(r.median)} wd</div></div>`).join('');}

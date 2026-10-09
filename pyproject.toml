@@ -1,0 +1,9 @@
+[project]
+name = "west-bengal-court-analytics"
+version = "2.0.0"
+description = "Modular raw-CSV court analytics with independent display components"
+requires-python = ">=3.11"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]

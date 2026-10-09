@@ -1,0 +1,33 @@
+{
+  "district": "Purba Medinipur",
+  "start": "2010-01",
+  "end": "2026-06",
+  "extracted_on": "2026-07-20",
+  "definition_version": "draft-2026-10-04-v5",
+  "courts": [
+    {
+      "id": "CJM",
+      "label": "CJM",
+      "name": "Chief Judicial Magistrate",
+      "folder": "cjm"
+    },
+    {
+      "id": "CJ_JR",
+      "label": "CJ (Jr.)",
+      "name": "Civil Judge (Jr. Div.)",
+      "folder": "civil_judge_jr"
+    },
+    {
+      "id": "CJ_SR",
+      "label": "CJ (Sr.)",
+      "name": "Civil Judge (Sr. Div.)",
+      "folder": "civil_judge_sr"
+    },
+    {
+      "id": "DJ",
+      "label": "DJ",
+      "name": "District Judge",
+      "folder": "district_judge"
+    }
+  ]
+}

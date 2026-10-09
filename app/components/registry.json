@@ -1,0 +1,104 @@
+{
+  "kpis": {
+    "module": "kpis",
+    "canvas": null,
+    "group": null,
+    "renderer": "/static/js/components/kpis.js"
+  },
+  "dist": {
+    "module": "distribution",
+    "canvas": "distributionChart",
+    "group": null,
+    "renderer": "/static/js/components/dist.js"
+  },
+  "hearings": {
+    "module": "hearings",
+    "canvas": "hearingsChart",
+    "group": null,
+    "renderer": "/static/js/components/hearings.js"
+  },
+  "ranking": {
+    "module": "ranking",
+    "canvas": null,
+    "group": null,
+    "renderer": "/static/js/components/ranking.js"
+  },
+  "trend": {
+    "module": "filing_trend",
+    "canvas": "trendChart",
+    "group": "filing",
+    "renderer": "/static/js/components/trend.js"
+  },
+  "arrivalRate": {
+    "module": "arrival_rate",
+    "canvas": "arrivalRateChart",
+    "group": "filing",
+    "renderer": "/static/js/components/arrivalRate.js"
+  },
+  "meanFilings": {
+    "module": "mean_filings",
+    "canvas": "meanFilingsChart",
+    "group": "filing",
+    "renderer": "/static/js/components/meanFilings.js"
+  },
+  "filingObservations": {
+    "module": "filing_observations",
+    "canvas": null,
+    "group": "filing",
+    "renderer": "/static/js/components/filingObservations.js"
+  },
+  "disposal": {
+    "module": "disposal",
+    "canvas": "disposalChart",
+    "group": null,
+    "renderer": "/static/js/components/disposal.js"
+  },
+  "gap": {
+    "module": "gap",
+    "canvas": "gapChart",
+    "group": null,
+    "renderer": "/static/js/components/gap.js"
+  },
+  "delayFlags": {
+    "module": "delay_flags",
+    "canvas": null,
+    "group": null,
+    "renderer": "/static/js/components/delayFlags.js"
+  },
+  "monthlyHearingRateTrend": {
+    "module": "hearing_trend",
+    "canvas": "monthlyHearingRateTrendChart",
+    "group": "hearing",
+    "renderer": "/static/js/components/monthlyHearingRateTrend.js"
+  },
+  "monthlyHearingRate": {
+    "module": "monthly_rate",
+    "canvas": "monthlyHearingRateChart",
+    "group": "hearing",
+    "renderer": "/static/js/components/monthlyHearingRate.js"
+  },
+  "casewiseHearingRate": {
+    "module": "casewise_rate",
+    "canvas": "casewiseHearingRateChart",
+    "group": "hearing",
+    "renderer": "/static/js/components/casewiseHearingRate.js"
+  },
+  "hearingObservations": {
+    "module": "hearing_observations",
+    "canvas": null,
+    "group": "hearing",
+    "renderer": "/static/js/components/hearingObservations.js"
+  },
+  "complexity": {
+    "module": "complexity",
+    "canvas": "complexityChart",
+    "group": "complexity",
+    "renderer": "/static/js/components/complexity.js"
+  },
+  "register": {
+    "module": "register",
+    "canvas": null,
+    "group": "register",
+    "renderer": "/static/js/components/register.js"
+  }
+}

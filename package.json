@@ -1,0 +1,9 @@
+{
+  "name": "docket-intelligence-ui",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node tests/frontend_contract.mjs",
+    "test:comparison": "node tests/comparison_complexity.mjs && node tests/filing_comparison.mjs"
+  }
+}

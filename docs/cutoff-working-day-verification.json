@@ -1,0 +1,306 @@
+{
+  "working_days": [
+    {
+      "district": "Purba Medinipur",
+      "court": "CJM",
+      "months": 198,
+      "workbook_vs_csv_activity_differing_months": 0
+    },
+    {
+      "district": "Purba Medinipur",
+      "court": "CJ_JR",
+      "months": 198,
+      "workbook_vs_csv_activity_differing_months": 0
+    },
+    {
+      "district": "Purba Medinipur",
+      "court": "CJ_SR",
+      "months": 198,
+      "workbook_vs_csv_activity_differing_months": 0
+    },
+    {
+      "district": "Purba Medinipur",
+      "court": "DJ",
+      "months": 198,
+      "workbook_vs_csv_activity_differing_months": 0
+    },
+    {
+      "district": "Bankura",
+      "court": "CJM",
+      "months": 198,
+      "workbook_vs_csv_activity_differing_months": 0
+    },
+    {
+      "district": "Bankura",
+      "court": "CJ_JR",
+      "months": 198,
+      "workbook_vs_csv_activity_differing_months": 0
+    },
+    {
+      "district": "Bankura",
+      "court": "CJ_SR",
+      "months": 198,
+      "workbook_vs_csv_activity_differing_months": 0
+    },
+    {
+      "district": "Bankura",
+      "court": "DJ",
+      "months": 198,
+      "workbook_vs_csv_activity_differing_months": 0
+    }
+  ],
+  "reference_comparison": [
+    {
+      "court": "CJM",
+      "case_type": "Gr Case",
+      "cutoff": "2017-01-01",
+      "gap": {
+        "workbook_n": 22047,
+        "workbook_median": 45,
+        "v4_n": 30269,
+        "v4_median": 69.0,
+        "v5_n": 21067,
+        "v5_median": 44.0
+      },
+      "hearings": {
+        "workbook_n": 8901,
+        "workbook_median": 1,
+        "v4_n": 14762,
+        "v4_median": 3.0,
+        "v5_n": 8806,
+        "v5_median": 1.0
+      }
+    },
+    {
+      "court": "CJM",
+      "case_type": "M . P Case",
+      "cutoff": "2017-01-01",
+      "gap": {
+        "workbook_n": 5679,
+        "workbook_median": 0,
+        "v4_n": 7851,
+        "v4_median": 0.0,
+        "v5_n": 5648,
+        "v5_median": 0.0
+      },
+      "hearings": {
+        "workbook_n": 5514,
+        "workbook_median": 0,
+        "v4_n": 7714,
+        "v4_median": 0.0,
+        "v5_n": 5508,
+        "v5_median": 0.0
+      }
+    },
+    {
+      "court": "CJM",
+      "case_type": "Misc",
+      "cutoff": "2017-01-01",
+      "gap": {
+        "workbook_n": 4987,
+        "workbook_median": 0,
+        "v4_n": 6823,
+        "v4_median": 0.0,
+        "v5_n": 4928,
+        "v5_median": 0.0
+      },
+      "hearings": {
+        "workbook_n": 3967,
+        "workbook_median": 6,
+        "v4_n": 5709,
+        "v4_median": 6.0,
+        "v5_n": 3934,
+        "v5_median": 6.0
+      }
+    },
+    {
+      "court": "CJ_JR",
+      "case_type": "Title Suit",
+      "cutoff": "2015-01-01",
+      "gap": {
+        "workbook_n": 3001,
+        "workbook_median": 0,
+        "v4_n": 4048,
+        "v4_median": 0.0,
+        "v5_n": 2998,
+        "v5_median": 0.0
+      },
+      "hearings": {
+        "workbook_n": 1733,
+        "workbook_median": 19,
+        "v4_n": 2792,
+        "v4_median": 19.0,
+        "v5_n": 1723,
+        "v5_median": 19.0
+      }
+    },
+    {
+      "court": "CJ_JR",
+      "case_type": "J.misc",
+      "cutoff": "2015-01-01",
+      "gap": {
+        "workbook_n": 678,
+        "workbook_median": 0,
+        "v4_n": 813,
+        "v4_median": 0.0,
+        "v5_n": 675,
+        "v5_median": 0.0
+      },
+      "hearings": {
+        "workbook_n": 443,
+        "workbook_median": 18,
+        "v4_n": 571,
+        "v4_median": 18.0,
+        "v5_n": 439,
+        "v5_median": 18.0
+      }
+    },
+    {
+      "court": "CJ_JR",
+      "case_type": "Other Suit",
+      "cutoff": "2015-01-01",
+      "gap": {
+        "workbook_n": 632,
+        "workbook_median": 0,
+        "v4_n": 752,
+        "v4_median": 0.0,
+        "v5_n": 631,
+        "v5_median": 0.0
+      },
+      "hearings": {
+        "workbook_n": 548,
+        "workbook_median": 9,
+        "v4_n": 688,
+        "v4_median": 8.0,
+        "v5_n": 547,
+        "v5_median": 9.0
+      }
+    },
+    {
+      "court": "CJ_SR",
+      "case_type": "Title Suit",
+      "cutoff": "2015-01-01",
+      "gap": {
+        "workbook_n": 2790,
+        "workbook_median": 0,
+        "v4_n": 3527,
+        "v4_median": 0.0,
+        "v5_n": 2771,
+        "v5_median": 0.0
+      },
+      "hearings": {
+        "workbook_n": 1097,
+        "workbook_median": 16,
+        "v4_n": 1769,
+        "v4_median": 13.0,
+        "v5_n": 1084,
+        "v5_median": 16.0
+      }
+    },
+    {
+      "court": "CJ_SR",
+      "case_type": "Other Suit",
+      "cutoff": "2015-01-01",
+      "gap": {
+        "workbook_n": 691,
+        "workbook_median": 0,
+        "v4_n": 992,
+        "v4_median": 0.0,
+        "v5_n": 680,
+        "v5_median": 0.0
+      },
+      "hearings": {
+        "workbook_n": 553,
+        "workbook_median": 15,
+        "v4_n": 923,
+        "v4_median": 12.0,
+        "v5_n": 550,
+        "v5_median": 15.0
+      }
+    },
+    {
+      "court": "CJ_SR",
+      "case_type": "J.misc",
+      "cutoff": "2015-01-01",
+      "gap": {
+        "workbook_n": 474,
+        "workbook_median": 0,
+        "v4_n": 535,
+        "v4_median": 0.0,
+        "v5_n": 471,
+        "v5_median": 0.0
+      },
+      "hearings": {
+        "workbook_n": 213,
+        "workbook_median": 18,
+        "v4_n": 270,
+        "v4_median": 15.5,
+        "v5_n": 210,
+        "v5_median": 18.0
+      }
+    },
+    {
+      "court": "DJ",
+      "case_type": "Criminal Misc.",
+      "cutoff": "2015-01-01",
+      "gap": {
+        "workbook_n": 20446,
+        "workbook_median": 0,
+        "v4_n": 20372,
+        "v4_median": 0.0,
+        "v5_n": 20370,
+        "v5_median": 0.0
+      },
+      "hearings": {
+        "workbook_n": 20361,
+        "workbook_median": 1,
+        "v4_n": 20277,
+        "v4_median": 1.0,
+        "v5_n": 20275,
+        "v5_median": 1.0
+      }
+    },
+    {
+      "court": "DJ",
+      "case_type": "Electricity Act",
+      "cutoff": "2015-01-01",
+      "gap": {
+        "workbook_n": 11325,
+        "workbook_median": 0,
+        "v4_n": 13322,
+        "v4_median": 0.0,
+        "v5_n": 11282,
+        "v5_median": 0.0
+      },
+      "hearings": {
+        "workbook_n": 8115,
+        "workbook_median": 3,
+        "v4_n": 10013,
+        "v4_median": 3.0,
+        "v5_n": 8114,
+        "v5_median": 3.0
+      }
+    },
+    {
+      "court": "DJ",
+      "case_type": "M A C C",
+      "cutoff": "2015-01-01",
+      "gap": {
+        "workbook_n": 8047,
+        "workbook_median": 0,
+        "v4_n": 9471,
+        "v4_median": 0.0,
+        "v5_n": 8000,
+        "v5_median": 0.0
+      },
+      "hearings": {
+        "workbook_n": 5166,
+        "workbook_median": 7,
+        "v4_n": 7060,
+        "v4_median": 7.0,
+        "v5_n": 5159,
+        "v5_median": 7.0
+      }
+    }
+  ]
+}

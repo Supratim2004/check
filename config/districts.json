@@ -1,0 +1,55 @@
+[
+  {
+    "district": "Purba Medinipur",
+    "source_folder": "Purba Medinipur",
+    "data_quality_warnings": [],
+    "require_monthly_working_days": true,
+    "listing_cutoffs": {
+      "CJM": "2017-01-01",
+      "CJ_JR": "2015-01-01",
+      "CJ_SR": "2015-01-01",
+      "DJ": "2015-01-01"
+    },
+    "monthly_working_days": {
+      "file": "Working_days_court_wise.xlsx",
+      "sheets": {
+        "CJM": "CJM",
+        "DJ": "DJ",
+        "CJ_SR": "CJ (Sr)",
+        "CJ_JR": "CJ (Jr)"
+      },
+      "uses": [
+        "arrival_rate",
+        "hearing_rate"
+      ]
+    }
+  },
+  {
+    "district": "Bankura",
+    "source_folder": "Bankura",
+    "extracted_on": "2026-09-28",
+    "data_quality_warnings": [
+      "Bankura hearing records are incomplete before May 2015; October 2016 is documented as missing. Recorded values are retained without exclusions or cut-offs. Few or no recorded hearings do not establish that no hearings occurred."
+    ],
+    "monthly_working_days": {
+      "file": "Working_days_court_wise.xlsx",
+      "sheets": {
+        "CJM": "CJM",
+        "DJ": "DJ",
+        "CJ_SR": "CJ (Sr)",
+        "CJ_JR": "CJ (Jr)"
+      },
+      "uses": [
+        "arrival_rate",
+        "hearing_rate"
+      ]
+    },
+    "listing_cutoffs": {
+      "CJM": "2017-01-01",
+      "CJ_JR":"2017-01-01",
+      "CJ_SR": "2017-01-01",
+      "DJ": "2017-01-01"
+    },
+    "require_monthly_working_days": true
+  }
+]

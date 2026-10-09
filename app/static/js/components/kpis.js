@@ -1,0 +1,2 @@
+import {text,fmt} from '../visuals.js';
+export function render(d){text('totalFilings',fmt(d.total));text('totalFilingsSub',`${d.types} case types · filed in selected range`);text('avgMonthly',fmt(d.mean));text('avgMonthlySub',`${d.leading??'No eligible cases'} (mean/mo)`);text('peakFilings',fmt(d.peak));text('peakCaseType',d.leading?`${d.leading}, single busiest month`:'No eligible cases');text('medianDisposal',fmt(d.disposal));text('medianDisposalSub',`working days — ${d.leading??'unavailable'}`);}

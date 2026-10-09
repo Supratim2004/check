@@ -1,0 +1,146 @@
+[
+  {
+    "court": "CJM",
+    "type": "16",
+    "component": "arrivalRate",
+    "months_verified": 198
+  },
+  {
+    "court": "CJM",
+    "type": "16",
+    "component": "monthlyHearingRateTrend",
+    "months_verified": 198
+  },
+  {
+    "court": "CJM",
+    "type": "7",
+    "component": "arrivalRate",
+    "months_verified": 198
+  },
+  {
+    "court": "CJM",
+    "type": "7",
+    "component": "monthlyHearingRateTrend",
+    "months_verified": 198
+  },
+  {
+    "court": "CJM",
+    "type": "54",
+    "component": "arrivalRate",
+    "months_verified": 198
+  },
+  {
+    "court": "CJM",
+    "type": "54",
+    "component": "monthlyHearingRateTrend",
+    "months_verified": 198
+  },
+  {
+    "court": "CJ_JR",
+    "type": "49",
+    "component": "arrivalRate",
+    "months_verified": 198
+  },
+  {
+    "court": "CJ_JR",
+    "type": "49",
+    "component": "monthlyHearingRateTrend",
+    "months_verified": 198
+  },
+  {
+    "court": "CJ_JR",
+    "type": "28",
+    "component": "arrivalRate",
+    "months_verified": 198
+  },
+  {
+    "court": "CJ_JR",
+    "type": "28",
+    "component": "monthlyHearingRateTrend",
+    "months_verified": 198
+  },
+  {
+    "court": "CJ_JR",
+    "type": "25",
+    "component": "arrivalRate",
+    "months_verified": 198
+  },
+  {
+    "court": "CJ_JR",
+    "type": "25",
+    "component": "monthlyHearingRateTrend",
+    "months_verified": 198
+  },
+  {
+    "court": "CJ_SR",
+    "type": "49",
+    "component": "arrivalRate",
+    "months_verified": 198
+  },
+  {
+    "court": "CJ_SR",
+    "type": "49",
+    "component": "monthlyHearingRateTrend",
+    "months_verified": 198
+  },
+  {
+    "court": "CJ_SR",
+    "type": "34",
+    "component": "arrivalRate",
+    "months_verified": 198
+  },
+  {
+    "court": "CJ_SR",
+    "type": "34",
+    "component": "monthlyHearingRateTrend",
+    "months_verified": 198
+  },
+  {
+    "court": "CJ_SR",
+    "type": "46",
+    "component": "arrivalRate",
+    "months_verified": 198
+  },
+  {
+    "court": "CJ_SR",
+    "type": "46",
+    "component": "monthlyHearingRateTrend",
+    "months_verified": 198
+  },
+  {
+    "court": "DJ",
+    "type": "11",
+    "component": "arrivalRate",
+    "months_verified": 198
+  },
+  {
+    "court": "DJ",
+    "type": "11",
+    "component": "monthlyHearingRateTrend",
+    "months_verified": 198
+  },
+  {
+    "court": "DJ",
+    "type": "24",
+    "component": "arrivalRate",
+    "months_verified": 198
+  },
+  {
+    "court": "DJ",
+    "type": "24",
+    "component": "monthlyHearingRateTrend",
+    "months_verified": 198
+  },
+  {
+    "court": "DJ",
+    "type": "13",
+    "component": "arrivalRate",
+    "months_verified": 198
+  },
+  {
+    "court": "DJ",
+    "type": "13",
+    "component": "monthlyHearingRateTrend",
+    "months_verified": 198
+  }
+]

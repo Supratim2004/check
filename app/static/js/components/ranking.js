@@ -1,0 +1,2 @@
+import {esc,fmt} from '../visuals.js';
+export function render(d){document.getElementById('topPerformers').innerHTML=d.rows.map((r,i)=>`<div class="performer-item"><div class="performer-info"><div class="performer-rank">${i+1}</div><div><div class="performer-name">${esc(r.case_type)}</div><div class="performer-sub">${esc(r.side)}</div></div></div><div class="performer-value">${fmt(r.filings)}</div></div>`).join('');}

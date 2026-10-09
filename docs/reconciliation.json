@@ -1,0 +1,130 @@
+[
+  {
+    "district": "Purba Medinipur",
+    "court": "CJM",
+    "start": "2010-01",
+    "end": "2026-06",
+    "csv_filings": 63806,
+    "api_filings": 63806
+  },
+  {
+    "district": "Purba Medinipur",
+    "court": "CJM",
+    "start": "2026-01",
+    "end": "2026-03",
+    "csv_filings": 1053,
+    "api_filings": 1053
+  },
+  {
+    "district": "Purba Medinipur",
+    "court": "CJ_JR",
+    "start": "2010-01",
+    "end": "2026-06",
+    "csv_filings": 7213,
+    "api_filings": 7213
+  },
+  {
+    "district": "Purba Medinipur",
+    "court": "CJ_JR",
+    "start": "2026-01",
+    "end": "2026-03",
+    "csv_filings": 101,
+    "api_filings": 101
+  },
+  {
+    "district": "Purba Medinipur",
+    "court": "CJ_SR",
+    "start": "2010-01",
+    "end": "2026-06",
+    "csv_filings": 6724,
+    "api_filings": 6724
+  },
+  {
+    "district": "Purba Medinipur",
+    "court": "CJ_SR",
+    "start": "2026-01",
+    "end": "2026-03",
+    "csv_filings": 161,
+    "api_filings": 161
+  },
+  {
+    "district": "Purba Medinipur",
+    "court": "DJ",
+    "start": "2010-01",
+    "end": "2026-06",
+    "csv_filings": 67880,
+    "api_filings": 67880
+  },
+  {
+    "district": "Purba Medinipur",
+    "court": "DJ",
+    "start": "2026-01",
+    "end": "2026-03",
+    "csv_filings": 1552,
+    "api_filings": 1552
+  },
+  {
+    "district": "Bankura",
+    "court": "CJM",
+    "start": "2010-01",
+    "end": "2026-06",
+    "csv_filings": 49274,
+    "api_filings": 49274
+  },
+  {
+    "district": "Bankura",
+    "court": "CJM",
+    "start": "2026-01",
+    "end": "2026-03",
+    "csv_filings": 1562,
+    "api_filings": 1562
+  },
+  {
+    "district": "Bankura",
+    "court": "CJ_JR",
+    "start": "2010-01",
+    "end": "2026-06",
+    "csv_filings": 6925,
+    "api_filings": 6925
+  },
+  {
+    "district": "Bankura",
+    "court": "CJ_JR",
+    "start": "2026-01",
+    "end": "2026-03",
+    "csv_filings": 136,
+    "api_filings": 136
+  },
+  {
+    "district": "Bankura",
+    "court": "CJ_SR",
+    "start": "2010-01",
+    "end": "2026-06",
+    "csv_filings": 5041,
+    "api_filings": 5041
+  },
+  {
+    "district": "Bankura",
+    "court": "CJ_SR",
+    "start": "2026-01",
+    "end": "2026-03",
+    "csv_filings": 156,
+    "api_filings": 156
+  },
+  {
+    "district": "Bankura",
+    "court": "DJ",
+    "start": "2010-01",
+    "end": "2026-06",
+    "csv_filings": 31915,
+    "api_filings": 31915
+  },
+  {
+    "district": "Bankura",
+    "court": "DJ",
+    "start": "2026-01",
+    "end": "2026-03",
+    "csv_filings": 755,
+    "api_filings": 755
+  }
+]

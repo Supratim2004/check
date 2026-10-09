@@ -1,0 +1,2 @@
+import {charts,destroy,PALETTE,CHART_TEXT,CHART_PANEL} from '../visuals.js';
+export function render(d){destroy('dist');charts.dist=new Chart(document.getElementById('distributionChart'),{type:'doughnut',data:{labels:d.rows.map(r=>r.case_type),datasets:[{data:d.rows.map(r=>r.filings),backgroundColor:PALETTE,borderColor:CHART_PANEL,borderWidth:2}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{color:CHART_TEXT,boxWidth:12}}},cutout:'55%'}});}
